@@ -1,36 +1,72 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Inner Victory Platform
+
+A personal development and wellness platform built with Next.js 14, Supabase, and Tailwind CSS.
+
+## Features
+
+- **Progress Tracking** — Log daily wins, habits, and milestones
+- **Authentication** — Secure sign-up / sign-in powered by Supabase Auth
+- **Dashboard** — Visual overview of streaks and achievements
+- **Responsive UI** — Fully mobile-friendly design with Tailwind CSS
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Framework | Next.js 14 (App Router) |
+| Database | Supabase (PostgreSQL) |
+| Auth | Supabase Auth |
+| Styling | Tailwind CSS |
+| Language | TypeScript |
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- Node.js 18+
+- A [Supabase](https://supabase.com) project
+
+### Installation
+
+```bash
+git clone https://github.com/SamGhouli/SamGhouli.git
+cd SamGhouli/inner-victory
+npm install
+```
+
+### Environment Variables
+
+Create a `.env.local` file at the project root:
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+### Run the Development Server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Project Structure
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```
+inner-victory/
+├── app/          # Next.js App Router pages & layouts
+├── components/   # Reusable UI components
+├── hooks/        # Custom React hooks
+├── lib/          # Supabase client & utilities
+├── supabase/     # Database migrations & types
+└── types/        # Shared TypeScript types
+```
 
-## Learn More
+## Deployment
 
-To learn more about Next.js, take a look at the following resources:
+Deploy instantly on [Vercel](https://vercel.com):
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Set the same environment variables in your Vercel project settings.
