@@ -2,9 +2,37 @@
 
 import { useSearchParams } from 'next/navigation'
 import { useEffect, useState, Suspense } from 'react'
-import { Sparkles, Activity } from 'lucide-react'
+import { Sparkles, Activity, CalendarDays, Dumbbell, Trophy, Film, Heart, Plane, ClipboardList, Clock, ChevronRight } from 'lucide-react'
+import Link from 'next/link'
 import { ReadinessRing } from '@/components/athlete/ReadinessRing'
 import { PillarCard } from '@/components/athlete/PillarCard'
+import { DEMO_DATA } from '@/lib/demo/data'
+
+const EVENT_TYPE_CONFIG = {
+  training: { icon: Dumbbell, color: '#4ade80', bg: '#4ade8015' },
+  match: { icon: Trophy, color: '#d4ff5c', bg: '#d4ff5c15' },
+  film: { icon: Film, color: '#60a5fa', bg: '#60a5fa15' },
+  recovery: { icon: Heart, color: '#a78bfa', bg: '#a78bfa15' },
+  travel: { icon: Plane, color: '#fb923c', bg: '#fb923c15' },
+  admin: { icon: ClipboardList, color: '#94a3b8', bg: '#94a3b815' },
+}
+
+function formatEventDate(dateStr: string): string {
+  const d = new Date(dateStr + 'T00:00:00')
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const diff = Math.round((d.getTime() - today.getTime()) / 86400000)
+  if (diff === 0) return 'Today'
+  if (diff === 1) return 'Tomorrow'
+  return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
+}
+
+function formatTime(time: string): string {
+  const [h, m] = time.split(':').map(Number)
+  const period = h >= 12 ? 'PM' : 'AM'
+  const hour = h % 12 || 12
+  return `${hour}:${m.toString().padStart(2, '0')} ${period}`
+}
 
 // Mock data for demo mode
 const DEMO_ATHLETE = {
@@ -198,6 +226,57 @@ function AthleteHomeContent() {
             color={p.color}
           />
         ))}
+      </div>
+
+      {/* Upcoming Sessions Strip */}
+      <div className="mb-5">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-xs font-semibold text-text-muted flex items-center gap-2">
+            <CalendarDays className="h-3.5 w-3.5" />
+            Upcoming Sessions
+          </p>
+          <Link
+            href={isDemo ? '/athlete/schedule?demo=true' : '/athlete/schedule'}
+            className="flex items-center gap-0.5 text-[11px] text-lime font-medium"
+          >
+            Set availability <ChevronRight className="h-3 w-3" />
+          </Link>
+        </div>
+        <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4 scrollbar-hide">
+          {DEMO_DATA.upcomingEvents.slice(0, 5).map((ev) => {
+            const cfg = EVENT_TYPE_CONFIG[ev.event_type as keyof typeof EVENT_TYPE_CONFIG] ?? EVENT_TYPE_CONFIG.admin
+            const Icon = cfg.icon
+            return (
+              <Link
+                key={ev.id}
+                href={isDemo ? '/athlete/schedule?demo=true' : '/athlete/schedule'}
+                className="flex-none w-44 rounded-xl border border-border-1 bg-surface-2 p-3"
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <div
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
+                    style={{ backgroundColor: cfg.bg, color: cfg.color }}
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                  </div>
+                  <span
+                    className="text-[10px] font-bold uppercase tracking-wide"
+                    style={{ color: cfg.color }}
+                  >
+                    {formatEventDate(ev.event_date)}
+                  </span>
+                </div>
+                <p className="text-xs font-semibold text-text-primary leading-snug mb-1 line-clamp-2">
+                  {ev.title}
+                </p>
+                <div className="flex items-center gap-1 text-[10px] text-text-faint">
+                  <Clock className="h-2.5 w-2.5" />
+                  {formatTime(ev.start_time)} · {ev.duration_mins}m
+                </div>
+              </Link>
+            )
+          })}
+        </div>
       </div>
 
       {/* AI Insight Card */}
