@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils'
 import {
   LayoutDashboard, Users, Activity, Video, Dumbbell, Trophy,
   HeartPulse, GraduationCap, UserPlus, CalendarDays, ShieldCheck,
-  Settings, AlertTriangle, ChevronRight
+  Settings, AlertTriangle, ChevronRight, ClipboardList
 } from 'lucide-react'
 import type { Team, User } from '@/types/database'
 
@@ -51,6 +51,7 @@ function getNavGroups(alertCount = 0, injuryCount = 0): NavGroup[] {
       label: 'Performance',
       items: [
         { label: 'Film Room', href: '/coach/film', icon: Video },
+        { label: 'Training Sessions', href: '/coach/sessions', icon: ClipboardList },
         { label: 'Training Log', href: '/coach/training', icon: Dumbbell },
         { label: 'Match Reports', href: '/coach/matches', icon: Trophy },
         { label: 'Recruitment', href: '/coach/recruitment', icon: UserPlus },
@@ -163,7 +164,7 @@ export function Sidebar({ team, user, alertCount = 0, injuryCount = 0, collapsed
           <div className={cn('flex items-center gap-2.5', collapsed ? '' : '')}>
             <div
               className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-bg"
-              style={{ backgroundColor: user.avatar_color ?? '#d4ff5c' }}
+              style={{ backgroundColor: user.avatar_color ?? '#3DB87F' }}
             >
               {user.initials ?? user.full_name?.slice(0, 2).toUpperCase()}
             </div>

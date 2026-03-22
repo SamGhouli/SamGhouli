@@ -55,9 +55,9 @@ export function TeamReadinessSummary({
     <div className="rounded-xl border border-border-1 bg-surface-2 p-5">
       <h2 className="mb-4 text-sm font-semibold text-text-primary">Team Readiness Breakdown</h2>
       <div className="space-y-4">
-        <PillarBar label="Physical" value={physicalScore} delta={physicalDelta} color="#4ade80" />
-        <PillarBar label="Mental (Agg.)" value={mentalScore} delta={mentalDelta} color="#60a5fa" />
-        <PillarBar label="Sleep" value={sleepScore} delta={sleepDelta} color="#a78bfa" />
+        <PillarBar label="Physical Readiness" value={physicalScore} delta={physicalDelta} color="#3DB87F" />
+        <PillarBar label="Mental Wellbeing" value={mentalScore} delta={mentalDelta} color="#60a5fa" />
+        <PillarBar label="Recovery Quality" value={sleepScore} delta={sleepDelta} color="#a78bfa" />
         <div>
           <div className="mb-1.5 flex items-center justify-between">
             <span className="text-xs text-text-muted">Training Load</span>
