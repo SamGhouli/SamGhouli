@@ -1,0 +1,26 @@
+{
+  "name": "Inner Victory",
+  "short_name": "Inner Victory",
+  "description": "Athlete Intelligence Platform",
+  "start_url": "/athlete",
+  "display": "standalone",
+  "background_color": "#0b0d14",
+  "theme_color": "#0b0d14",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable any"
+    }
+  ],
+  "categories": ["sports", "health", "fitness"],
+  "lang": "en-CA"
+}
