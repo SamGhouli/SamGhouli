@@ -4,7 +4,7 @@ import { getWHOOPRecovery, getWHOOPSleep, getWHOOPWorkout } from '@/lib/wearable
 import { getOuraReadiness, getOuraSleep } from '@/lib/wearables/oura'
 import { calculatePhysicalScore, calculateSleepScore, calculateCombinedScore } from '@/lib/scoring/readiness'
 
-export async function POST(request: NextRequest) {
+export async function POST(_request: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

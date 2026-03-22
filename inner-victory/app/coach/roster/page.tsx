@@ -8,7 +8,7 @@ import { RosterTable } from '@/components/coach/RosterTable'
 import { AthleteDetailPanel } from '@/components/coach/AthleteDetailPanel'
 import { useTeamReadiness, type AthleteReadinessRow } from '@/hooks/useTeamReadiness'
 import { useTeam } from '@/hooks/useTeam'
-import { DEMO_DATA, DEMO_ATHLETE_IDS } from '@/lib/demo/data'
+import { DEMO_DATA } from '@/lib/demo/data'
 
 // Build demo AthleteReadinessRow array from DEMO_DATA
 function buildDemoRows(): AthleteReadinessRow[] {

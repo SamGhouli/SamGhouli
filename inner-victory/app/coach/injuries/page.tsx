@@ -42,12 +42,6 @@ function buildDemoInjuries(): InjuryRow[] {
     })
 }
 
-const STATUS_LABEL: Record<AvailabilityStatus, string> = {
-  full: 'Full',
-  limited: 'Limited',
-  out: 'Out',
-}
-
 export default function InjuriesPage() {
   const searchParams = useSearchParams()
   const isDemo = searchParams.get('demo') === 'true'

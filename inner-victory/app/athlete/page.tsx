@@ -2,7 +2,7 @@
 
 import { useSearchParams } from 'next/navigation'
 import { useEffect, useState, Suspense } from 'react'
-import { Sparkles, Activity, Wifi } from 'lucide-react'
+import { Sparkles, Activity } from 'lucide-react'
 import { ReadinessRing } from '@/components/athlete/ReadinessRing'
 import { PillarCard } from '@/components/athlete/PillarCard'
 

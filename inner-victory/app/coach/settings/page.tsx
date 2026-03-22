@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { TopBar } from '@/components/shared/TopBar'
-import { DEMO_DATA, DEMO_COACH } from '@/lib/demo/data'
+import { DEMO_DATA } from '@/lib/demo/data'
 import { Save, Pencil, X, Plus } from 'lucide-react'
 import type { Role } from '@/types/database'
 

@@ -216,10 +216,10 @@ export default function WearablesPage() {
             <div className="flex-1">
               <p className="text-sm font-semibold text-text-primary mb-0.5">Manual Entry</p>
               <p className="text-xs text-text-muted mb-3">
-                No wearable? Enter your metrics manually each day and we'll still generate your physical score.
+                No wearable? Enter your metrics manually each day and we&apos;ll still generate your physical score.
               </p>
               <button className="rounded-lg border border-border-1 bg-surface-3 px-4 py-2 text-xs font-medium text-text-primary min-h-[36px]">
-                Enter today's metrics
+                Enter today&apos;s metrics
               </button>
             </div>
           </div>

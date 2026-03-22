@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import { TopBar } from '@/components/shared/TopBar'
 import { EmptyState } from '@/components/shared/EmptyState'
 import type { FilmSession } from '@/types/database'
-import { Film, Tag, ChevronDown } from 'lucide-react'
+import { Film, Tag } from 'lucide-react'
 
 // Demo film session data
 const DEMO_FILM_SESSIONS: FilmSession[] = [

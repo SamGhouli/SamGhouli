@@ -1,6 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
 import { TopBar } from '@/components/shared/TopBar'
-import { SkeletonCard } from '@/components/shared/LoadingState'
 import { AIInsightCard } from '@/components/coach/AIInsightCard'
 import { TeamReadinessSummary } from '@/components/coach/TeamReadinessSummary'
 import { AlertStrip } from '@/components/coach/AlertStrip'
@@ -11,12 +10,6 @@ import type { Alert, TeamEvent } from '@/types/database'
 
 interface PageProps {
   searchParams: { demo?: string }
-}
-
-function scoreColor(score: number) {
-  if (score >= 75) return 'text-green'
-  if (score >= 55) return 'text-amber'
-  return 'text-rose'
 }
 
 function formatDate(d: Date) {
@@ -227,12 +220,6 @@ export default async function CoachDashboard({ searchParams }: PageProps) {
         : 'None scheduled',
     },
   ]
-
-  const severityColors: Record<string, string> = {
-    critical: 'text-rose',
-    warning: 'text-amber',
-    info: 'text-sky',
-  }
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">

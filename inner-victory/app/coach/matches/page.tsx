@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { TopBar } from '@/components/shared/TopBar'
 import { EmptyState } from '@/components/shared/EmptyState'
-import { ScoreBadge } from '@/components/shared/ScoreBadge'
 import { DEMO_DATA } from '@/lib/demo/data'
 import type { MatchStat } from '@/types/database'
 import { Trophy, ChevronDown, ChevronUp } from 'lucide-react'
@@ -212,7 +211,7 @@ export default function MatchesPage() {
                                   </div>
                                 </td>
                                 <td className="px-4 py-3 text-center text-xs text-text-muted tabular-nums">
-                                  {stat.minutes_played}'
+                                  {stat.minutes_played}&apos;
                                 </td>
                                 <td className="px-4 py-3 text-center">
                                   <span className={`text-sm font-bold tabular-nums ${stat.goals > 0 ? 'text-lime' : 'text-text-muted'}`}>

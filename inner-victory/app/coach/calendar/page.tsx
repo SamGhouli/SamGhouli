@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { TopBar } from '@/components/shared/TopBar'
-import { EmptyState } from '@/components/shared/EmptyState'
 import { DEMO_DATA } from '@/lib/demo/data'
 import type { TeamEvent } from '@/types/database'
 import { ChevronLeft, ChevronRight, PlusCircle, X, Clock, MapPin } from 'lucide-react'
@@ -284,7 +283,6 @@ export default function CalendarPage() {
                       </div>
                       <div className="space-y-0.5">
                         {dayEvents.slice(0, 3).map((ev) => {
-                          const dotColor = EVENT_TYPE_DOT[ev.event_type] ?? 'bg-text-muted'
                           const chipColor =
                             EVENT_TYPE_COLORS[ev.event_type] ?? 'bg-surface-3 text-text-muted border-border-1'
                           return (
@@ -364,7 +362,7 @@ export default function CalendarPage() {
 
         {/* Legend */}
         <div className="flex flex-wrap gap-3">
-          {Object.entries(EVENT_TYPE_COLORS).map(([type, color]) => (
+          {Object.keys(EVENT_TYPE_COLORS).map((type) => (
             <div key={type} className="flex items-center gap-1.5">
               <div className={`h-2 w-2 rounded-full ${EVENT_TYPE_DOT[type] ?? 'bg-text-muted'}`} />
               <span className="text-[10px] text-text-muted capitalize">{type}</span>

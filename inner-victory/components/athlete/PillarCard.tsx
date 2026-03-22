@@ -14,7 +14,6 @@ export function PillarCard({ label, score, delta, color }: PillarCardProps) {
   const radius = 28
   const strokeWidth = 5
   const cx = 36
-  const cy = 36
   const circumference = Math.PI * radius // half circle
   const fill = (score / 100) * circumference
 

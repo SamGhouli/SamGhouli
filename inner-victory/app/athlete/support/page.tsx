@@ -224,7 +224,7 @@ export default function SupportPage() {
           <div className="rounded-xl border border-border-1 bg-surface-2 p-4 space-y-2">
             <p className="text-sm text-text-primary font-semibold">What happens next?</p>
             <ul className="space-y-1.5 text-sm text-text-muted list-disc list-inside">
-              <li>You'll receive a confirmation email within 24 hours</li>
+              <li>You&apos;ll receive a confirmation email within 24 hours</li>
               <li>Your therapist will reach out to schedule a first session</li>
               <li>All sessions are completely confidential</li>
             </ul>
