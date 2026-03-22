@@ -1,6 +1,6 @@
 'use client'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useSearchParams } from 'next/navigation'
 import { Zap, TrendingUp, CheckSquare, MessageCircle, User } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -17,6 +17,8 @@ interface BottomNavProps {
 
 export function BottomNav({ hasCheckedIn = false }: BottomNavProps) {
   const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const isDemo = searchParams.get('demo') === 'true'
 
   const items: NavItem[] = [
     { label: 'Readiness', href: '/athlete', icon: Zap },
@@ -34,7 +36,7 @@ export function BottomNav({ hasCheckedIn = false }: BottomNavProps) {
         return (
           <Link
             key={item.href}
-            href={item.href}
+            href={isDemo ? `${item.href}?demo=true` : item.href}
             className={cn(
               'relative flex min-h-[44px] flex-col items-center justify-center gap-1 rounded-lg px-3 transition-colors',
               isActive ? 'text-lime' : 'text-text-muted'

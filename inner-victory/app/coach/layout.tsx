@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import { Sidebar } from '@/components/shared/Sidebar'
 import { createClient } from '@/lib/supabase/server'
 
@@ -38,7 +39,9 @@ export default async function CoachLayout({ children }: { children: React.ReactN
 
   return (
     <div className="flex h-screen overflow-hidden bg-bg">
-      <Sidebar team={team ?? undefined} user={user ?? undefined} alertCount={alertCount} injuryCount={injuryCount} />
+      <Suspense fallback={<div className="w-[200px] shrink-0 bg-surface-1 border-r border-border-1" />}>
+        <Sidebar team={team ?? undefined} user={user ?? undefined} alertCount={alertCount} injuryCount={injuryCount} />
+      </Suspense>
       <main className="flex flex-1 flex-col overflow-hidden">
         {children}
       </main>

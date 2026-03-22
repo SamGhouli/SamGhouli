@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import { BottomNav } from '@/components/shared/BottomNav'
 import { createClient } from '@/lib/supabase/server'
 
@@ -38,7 +39,9 @@ export default async function AthleteLayout({ children }: { children: React.Reac
         <main className="pb-[60px]">
           {children}
         </main>
-        <BottomNav hasCheckedIn={hasCheckedIn} />
+        <Suspense fallback={null}>
+          <BottomNav hasCheckedIn={hasCheckedIn} />
+        </Suspense>
       </div>
     </div>
   )

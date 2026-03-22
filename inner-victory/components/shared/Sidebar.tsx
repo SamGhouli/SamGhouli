@@ -1,6 +1,6 @@
 'use client'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import {
   LayoutDashboard, Users, Activity, Video, Dumbbell, Trophy,
@@ -78,6 +78,8 @@ const ROLE_LABELS: Record<string, string> = {
 
 export function Sidebar({ team, user, alertCount = 0, injuryCount = 0, collapsed = false }: SidebarProps) {
   const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const isDemo = searchParams.get('demo') === 'true'
   const navGroups = getNavGroups(alertCount, injuryCount)
 
   return (
@@ -125,10 +127,11 @@ export function Sidebar({ team, user, alertCount = 0, injuryCount = 0, collapsed
             {group.items.map((item) => {
               const Icon = item.icon
               const isActive = pathname === item.href || (item.href !== '/coach' && pathname.startsWith(item.href))
+              const href = isDemo ? `${item.href}?demo=true` : item.href
               return (
                 <Link
                   key={item.href}
-                  href={item.href}
+                  href={href}
                   className={cn(
                     'flex items-center gap-2.5 rounded-lg px-2 py-2 text-xs transition-colors',
                     isActive
