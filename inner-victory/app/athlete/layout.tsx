@@ -10,14 +10,23 @@ export default async function AthleteLayout({ children }: { children: React.Reac
 
     if (authUser) {
       const today = new Date().toISOString().split('T')[0]
-      const { data: checkin } = await supabase
-        .from('wellness_checkins')
+      // Look up internal user id from auth_id
+      const { data: userData } = await supabase
+        .from('users')
         .select('id')
-        .eq('user_id', authUser.id)
-        .eq('date', today)
+        .eq('auth_id', authUser.id)
         .single()
 
-      hasCheckedIn = !!checkin
+      if (userData) {
+        const { data: checkin } = await supabase
+          .from('wellness_checkins')
+          .select('id')
+          .eq('athlete_id', userData.id)
+          .eq('date', today)
+          .single()
+
+        hasCheckedIn = !!checkin
+      }
     }
   } catch {
     // Silently fall through — demo mode or unauthenticated

@@ -31,9 +31,11 @@ CREATE TABLE teams (
   id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   name          TEXT NOT NULL,
   sport         TEXT NOT NULL,
+  league        TEXT,
   division      TEXT,
   institution   TEXT,
   logo_url      TEXT,
+  season_label  TEXT,
   timezone      TEXT NOT NULL DEFAULT 'America/Toronto',
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -48,14 +50,18 @@ CREATE TABLE users (
   auth_id         UUID UNIQUE,                  -- references auth.users(id)
   team_id         UUID NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
   role            user_role NOT NULL DEFAULT 'athlete',
-  first_name      TEXT NOT NULL,
-  last_name       TEXT NOT NULL,
+  full_name       TEXT NOT NULL,
   email           TEXT UNIQUE NOT NULL,
   jersey_number   INT,
   position        TEXT,
   avatar_url      TEXT,
   date_of_birth   DATE,
   year_of_study   INT,                          -- academic year (1–4+)
+  wearable_source       TEXT DEFAULT 'manual',       -- 'whoop', 'oura', 'garmin', 'apple_health', 'manual'
+  whoop_access_token    TEXT,
+  whoop_refresh_token   TEXT,
+  oura_access_token     TEXT,
+  garmin_access_token   TEXT,
   is_active       BOOLEAN NOT NULL DEFAULT TRUE,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -84,10 +90,15 @@ CREATE TABLE readiness_scores (
   -- Heart rate
   resting_hr            NUMERIC(5,2),
   resting_hr_baseline   NUMERIC(5,2),
+  -- Combined / derived
+  combined_score        NUMERIC(5,2),
+  training_load         NUMERIC(5,2),
+  sleep_hours           NUMERIC(4,2),
   -- Strain (0–21 Whoop-style scale)
   strain                NUMERIC(4,2),
   -- Metadata
-  data_source           TEXT DEFAULT 'manual',  -- 'whoop', 'garmin', 'manual', etc.
+  wearable_source       TEXT DEFAULT 'manual',  -- 'whoop', 'garmin', 'oura', 'manual'
+  data_source           TEXT DEFAULT 'manual',  -- legacy alias
   notes                 TEXT,
   created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE (athlete_id, date)
@@ -111,6 +122,8 @@ CREATE TABLE wellness_checkins (
   stress_level    INT CHECK (stress_level BETWEEN 1 AND 10),
   sleep_hours     NUMERIC(4,2),
   sleep_quality   INT CHECK (sleep_quality BETWEEN 1 AND 10),
+  -- Derived mental score (0–100)
+  mental_score    NUMERIC(5,2),
   -- Flags
   has_soreness    BOOLEAN DEFAULT FALSE,
   soreness_areas  TEXT[],
@@ -136,7 +149,9 @@ CREATE TABLE team_mental_aggregates (
   avg_stress            NUMERIC(4,2),
   avg_sleep_hours       NUMERIC(4,2),
   avg_sleep_quality     NUMERIC(4,2),
+  avg_mental_score      NUMERIC(5,2),               -- derived 0–100 score
   response_count        INT DEFAULT 0,
+  check_in_count        INT DEFAULT 0,              -- alias for response_count
   total_athletes        INT DEFAULT 0,
   created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE (team_id, date)
@@ -174,10 +189,12 @@ CREATE TABLE academic_records (
   id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   athlete_id      UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   team_id         UUID NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
-  term            TEXT NOT NULL,           -- e.g., "Fall 2025"
+  term            TEXT NOT NULL DEFAULT 'Current',
   gpa             NUMERIC(3,2),
+  attendance_pct  NUMERIC(5,2),
   credits_taken   INT,
   credits_passed  INT,
+  eligibility_status TEXT NOT NULL DEFAULT 'ok' CHECK (eligibility_status IN ('ok', 'review', 'ineligible')),
   is_flagged      BOOLEAN DEFAULT FALSE,
   flag_reason     TEXT,
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -209,19 +226,24 @@ CREATE INDEX idx_notes_author ON staff_notes(author_id);
 -- ============================================================
 
 CREATE TABLE film_sessions (
-  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  team_id         UUID NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
-  created_by      UUID NOT NULL REFERENCES users(id),
-  title           TEXT NOT NULL,
-  description     TEXT,
-  video_url       TEXT,
-  thumbnail_url   TEXT,
-  duration_mins   INT,
-  session_date    DATE,
-  tags            TEXT[],
-  is_published    BOOLEAN DEFAULT FALSE,
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  team_id             UUID NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+  created_by          UUID NOT NULL REFERENCES users(id),
+  title               TEXT NOT NULL,
+  description         TEXT,
+  session_type        TEXT NOT NULL DEFAULT 'other',  -- 'match_review', 'opposition_scout', 'training_clip', 'highlight', 'other'
+  match_result        TEXT,                           -- e.g. 'W 3-1 vs Laurier'
+  clip_count          INT DEFAULT 0,
+  tagged_athlete_ids  UUID[] DEFAULT '{}',
+  video_url           TEXT,
+  thumbnail_url       TEXT,
+  duration_mins       INT,
+  session_date        DATE,
+  tags                TEXT[],
+  notes               TEXT,
+  is_published        BOOLEAN DEFAULT FALSE,
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX idx_film_team ON film_sessions(team_id);
@@ -356,17 +378,19 @@ CREATE TABLE team_events (
   created_by      UUID NOT NULL REFERENCES users(id),
   title           TEXT NOT NULL,
   description     TEXT,
-  event_type      TEXT NOT NULL DEFAULT 'other',  -- 'match', 'training', 'meeting', 'travel', 'other'
-  start_time      TIMESTAMPTZ NOT NULL,
-  end_time        TIMESTAMPTZ,
+  event_type      TEXT NOT NULL DEFAULT 'other',  -- 'match', 'training', 'film', 'recovery', 'meeting', 'medical', 'other'
+  event_date      DATE NOT NULL,
+  start_time      TEXT,                            -- e.g. "07:30" (HH:MM)
+  duration_mins   INT,
   location        TEXT,
   opponent        TEXT,
+  notes           TEXT,
   is_mandatory    BOOLEAN DEFAULT TRUE,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_events_team_start ON team_events(team_id, start_time);
+CREATE INDEX idx_events_team_date ON team_events(team_id, event_date);
 
 -- ============================================================
 -- ALERTS

@@ -14,23 +14,32 @@ export default async function CheckinPage() {
     if (authUser) {
       const today = new Date().toISOString().split('T')[0]
 
-      const { data: checkin } = await supabase
+      // Resolve internal user id from auth_id
+      const { data: userData } = await supabase
+        .from('users')
+        .select('id')
+        .eq('auth_id', authUser.id)
+        .single()
+
+      const athleteId = userData?.id
+
+      const { data: checkin } = athleteId ? await supabase
         .from('wellness_checkins')
         .select('mental_score')
-        .eq('user_id', authUser.id)
+        .eq('athlete_id', athleteId)
         .eq('date', today)
-        .single()
+        .single() : { data: null }
 
       if (checkin) {
         hasCheckedIn = true
 
         // Also pull today's readiness score for the combined score
-        const { data: readiness } = await supabase
+        const { data: readiness } = athleteId ? await supabase
           .from('readiness_scores')
           .select('combined_score')
-          .eq('athlete_id', authUser.id)
+          .eq('athlete_id', athleteId)
           .eq('date', today)
-          .single()
+          .single() : { data: null }
 
         todayResult = {
           mental_score: checkin.mental_score ?? 70,

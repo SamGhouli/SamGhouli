@@ -189,11 +189,12 @@ export default function OnboardingPage() {
       const { error: userError } = await supabase
         .from('users')
         .upsert({
-          id: user.id,
+          auth_id: user.id,
           team_id: createdTeamId,
           full_name: profileForm.fullName.trim(),
+          email: user.email ?? '',
           role: profileForm.role,
-        })
+        }, { onConflict: 'auth_id' })
 
       if (userError) {
         setError('Failed to save your profile. Please try again.')

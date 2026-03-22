@@ -77,7 +77,7 @@ export default async function CoachDashboard({ searchParams }: PageProps) {
         const { data: userData } = await supabase
           .from('users')
           .select('team_id')
-          .eq('id', authUser.id)
+          .eq('auth_id', authUser.id)
           .single()
 
         const teamId = userData?.team_id

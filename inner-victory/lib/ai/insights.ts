@@ -30,7 +30,7 @@ interface AthleteInsightContext {
 export async function generateCoachingInsight(context: CoachInsightContext): Promise<string> {
   try {
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-6',
       max_tokens: 200,
       system: `You are a sports science advisor for a collegiate soccer coaching staff.
 Generate a single, direct, actionable insight (2-3 sentences max) for today's training session
@@ -55,7 +55,7 @@ Use plain language — coaches, not scientists.`,
 export async function generateAthleteInsight(context: AthleteInsightContext): Promise<string> {
   try {
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-6',
       max_tokens: 150,
       system: `You are a personal sports performance advisor. Generate a single,
 personalised daily insight (1-2 sentences max) for an athlete based on their readiness data.

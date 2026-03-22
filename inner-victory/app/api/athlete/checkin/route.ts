@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { cookies } from 'next/headers'
 import { calculateMentalScore, calculateCombinedScore } from '@/lib/scoring/readiness'
 
 export async function POST(request: NextRequest) {
@@ -21,11 +20,25 @@ export async function POST(request: NextRequest) {
     const mental_score = calculateMentalScore({ moodScore: mood_score, energyLevel: energy_level, stressLevel: stress_level })
     const today = new Date().toISOString().split('T')[0]
 
-    // Upsert wellness check-in (athlete private - RLS enforces athlete_id = auth.uid())
+    // Resolve internal user record
+    const { data: userData } = await supabase
+      .from('users')
+      .select('id, team_id')
+      .eq('auth_id', user.id)
+      .single()
+
+    if (!userData) {
+      return NextResponse.json({ error: 'User profile not found' }, { status: 404 })
+    }
+
+    const athleteId = userData.id
+
+    // Upsert wellness check-in
     const { data: checkin, error: checkinError } = await supabase
       .from('wellness_checkins')
       .upsert({
-        athlete_id: user.id,
+        athlete_id: athleteId,
+        team_id: userData.team_id,
         date: today,
         mood_score,
         energy_level,
@@ -42,7 +55,7 @@ export async function POST(request: NextRequest) {
     const { data: readiness } = await supabase
       .from('readiness_scores')
       .select('physical_score, sleep_score')
-      .eq('athlete_id', user.id)
+      .eq('athlete_id', athleteId)
       .eq('date', today)
       .single()
 
@@ -51,22 +64,11 @@ export async function POST(request: NextRequest) {
       await supabase
         .from('readiness_scores')
         .update({ combined_score })
-        .eq('athlete_id', user.id)
+        .eq('athlete_id', athleteId)
         .eq('date', today)
     }
-
-    // Update team mental aggregate (anonymised)
-    const { data: userData } = await supabase.from('users').select('team_id').eq('id', user.id).single()
-    if (userData?.team_id) {
-      const { data: teamCheckins } = await supabase
-        .from('wellness_checkins')
-        .select('mental_score, athlete_id')
-        .eq('date', today)
-        .in('athlete_id',
-          supabase.from('users').select('id').eq('team_id', userData.team_id).eq('role', 'athlete') as unknown as string[]
-        )
-
-      // Fallback: direct query for team members' check-ins
+    if (userData.team_id) {
+      // Query team members' check-ins for aggregate
       const { data: teamAthletes } = await supabase
         .from('users')
         .select('id')
@@ -111,13 +113,16 @@ export async function GET(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+    const { data: userData } = await supabase
+      .from('users').select('id').eq('auth_id', user.id).single()
+
     const today = new Date().toISOString().split('T')[0]
-    const { data } = await supabase
+    const { data } = userData ? await supabase
       .from('wellness_checkins')
       .select('*')
-      .eq('athlete_id', user.id)
+      .eq('athlete_id', userData.id)
       .eq('date', today)
-      .single()
+      .single() : { data: null }
 
     return NextResponse.json({ checkin: data })
   } catch {

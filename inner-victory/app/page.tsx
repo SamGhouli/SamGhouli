@@ -1,6 +1,5 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { cookies } from 'next/headers'
 
 export default async function RootPage({
   searchParams,
@@ -19,7 +18,7 @@ export default async function RootPage({
     const { data: userData } = await supabase
       .from('users')
       .select('role')
-      .eq('id', user.id)
+      .eq('auth_id', user.id)
       .single()
 
     if (userData?.role === 'athlete') redirect('/athlete')

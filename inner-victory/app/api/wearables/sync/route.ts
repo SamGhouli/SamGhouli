@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { cookies } from 'next/headers'
 import { getWHOOPRecovery, getWHOOPSleep, getWHOOPWorkout } from '@/lib/wearables/whoop'
 import { getOuraReadiness, getOuraSleep } from '@/lib/wearables/oura'
 import { calculatePhysicalScore, calculateSleepScore, calculateCombinedScore } from '@/lib/scoring/readiness'
@@ -12,8 +11,8 @@ export async function POST(request: NextRequest) {
 
   const { data: userData } = await supabase
     .from('users')
-    .select('team_id, wearable_source, whoop_access_token, oura_access_token')
-    .eq('id', user.id)
+    .select('id, team_id, wearable_source, whoop_access_token, oura_access_token')
+    .eq('auth_id', user.id)
     .single()
 
   if (!userData) return NextResponse.json({ error: 'User not found' }, { status: 404 })
@@ -52,7 +51,7 @@ export async function POST(request: NextRequest) {
       const { data: baseline } = await supabase
         .from('readiness_scores')
         .select('hrv, resting_hr')
-        .eq('athlete_id', user.id)
+        .eq('athlete_id', userData.id)
         .gte('date', new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0])
 
       const avgHrv = baseline?.length ? baseline.reduce((s, r) => s + (r.hrv ?? 0), 0) / baseline.length : hrv
@@ -78,7 +77,7 @@ export async function POST(request: NextRequest) {
     const { data: checkin } = await supabase
       .from('wellness_checkins')
       .select('mental_score')
-      .eq('athlete_id', user.id)
+      .eq('athlete_id', userData.id)
       .eq('date', today)
       .single()
 
@@ -86,7 +85,7 @@ export async function POST(request: NextRequest) {
     const combined_score = calculateCombinedScore(physical_score, mental_score, sleep_score)
 
     const { error } = await supabase.from('readiness_scores').upsert({
-      athlete_id: user.id,
+      athlete_id: userData.id,
       team_id: userData.team_id,
       date: today,
       physical_score,
