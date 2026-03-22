@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { TopBar } from '@/components/shared/TopBar'
 import {
-  ClipboardList, BookOpen, MessageSquare, ChevronDown, ChevronUp,
+  ClipboardList, MessageSquare, ChevronDown, ChevronUp,
   Plus, Tag, User, Clock, CheckCircle2, Circle, Zap, Target, AlignLeft,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'

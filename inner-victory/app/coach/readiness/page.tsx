@@ -22,6 +22,7 @@ import { StatusDot } from '@/components/shared/StatusDot'
 import { DEMO_DATA } from '@/lib/demo/data'
 import { useTeamReadiness } from '@/hooks/useTeamReadiness'
 import { useTeam } from '@/hooks/useTeam'
+import type { AthleteAvailability } from '@/types/database'
 
 const CHART_COLORS = {
   readiness: '#3DB87F',
@@ -89,10 +90,15 @@ export default function ReadinessPage() {
   const athletes = isDemo
     ? DEMO_DATA.readinessScores.map((score) => {
         const user = DEMO_DATA.athletes.find((a) => a.id === score.athlete_id)!
-        const availability = DEMO_DATA.availability.find((av) => av.athlete_id === score.athlete_id)
+        const availability = DEMO_DATA.availability.find(
+          (av) => av.athlete_id === score.athlete_id
+        ) as AthleteAvailability | undefined
         return { ...score, user, availability }
       })
-    : liveData.athletes
+    : liveData.athletes.map((a) => ({
+        ...a,
+        availability: undefined as AthleteAvailability | undefined,
+      }))
 
   const loading = isDemo ? false : liveData.loading
 

@@ -85,7 +85,7 @@ export default function AcademicsPage() {
           <p className="text-[11px] text-text-muted">
             <span className="font-semibold text-text-primary">Privacy:</span>{' '}
             Individual GPA and attendance figures are not displayed. Coaching staff can see eligibility
-            status and flag reasons only — detailed academic records are held by the registrar's office.
+            status and flag reasons only — detailed academic records are held by the registrar&apos;s office.
           </p>
         </div>
 
