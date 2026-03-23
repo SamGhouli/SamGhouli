@@ -17,6 +17,9 @@ import {
   XCircle,
   ChevronDown,
   ChevronUp,
+  MessageSquare,
+  Target,
+  Shield,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { DEMO_DATA } from '@/lib/demo/data'
@@ -68,6 +71,78 @@ function formatTime(time: string): string {
   const period = h >= 12 ? 'PM' : 'AM'
   const hour = h % 12 || 12
   return `${hour}:${m.toString().padStart(2, '0')} ${period}`
+}
+
+// ── Match Brief card shown to athletes ────────────────────────────────────────
+
+const DEMO_TEAM_MESSAGE =
+  "Let's bring our best to London. We've prepared well this week — trust the shape, press hard in the first 20, and play without fear. Every minute counts. — Coach Mitchell"
+
+const DEMO_MATCH_BRIEF = {
+  formation: '4-2-3-1',
+  role: 'Starting XI',
+  keyInstruction: 'Press high on their GK distribution. Trust the shape — find Priya or Devonte after winning the ball.',
+  setpiece: 'Corners: Priya Sharma takes. Near post run: Marcus. Far post: Noah.',
+}
+
+function MatchBriefCard() {
+  const [open, setOpen] = useState(false)
+  const nextMatch = DEMO_DATA.upcomingEvents.find((e) => e.event_type === 'match')
+  if (!nextMatch) return null
+
+  return (
+    <div className="rounded-xl border border-lime/30 bg-lime/5 overflow-hidden mb-4">
+      <button
+        className="w-full flex items-center gap-3 px-4 py-3.5 text-left"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <Target className="h-4 w-4 text-lime shrink-0" />
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-bold text-lime">Match Brief Available</p>
+          <p className="text-[11px] text-text-muted truncate">{nextMatch.title}</p>
+        </div>
+        {open ? <ChevronUp className="h-4 w-4 text-lime" /> : <ChevronDown className="h-4 w-4 text-lime" />}
+      </button>
+
+      {open && (
+        <div className="px-4 pb-4 pt-1 space-y-3 border-t border-lime/20">
+          {/* Role + Formation */}
+          <div className="flex gap-3">
+            <div className="flex-1 rounded-lg bg-surface-2 border border-border-1 p-3">
+              <p className="text-[10px] text-text-faint mb-0.5">Your Role</p>
+              <p className="text-sm font-bold text-lime">{DEMO_MATCH_BRIEF.role}</p>
+            </div>
+            <div className="flex-1 rounded-lg bg-surface-2 border border-border-1 p-3">
+              <p className="text-[10px] text-text-faint mb-0.5">Formation</p>
+              <p className="text-sm font-bold text-text-primary">{DEMO_MATCH_BRIEF.formation}</p>
+            </div>
+          </div>
+
+          {/* Key instruction */}
+          <div className="rounded-lg bg-surface-2 border border-border-1 p-3">
+            <p className="text-[10px] font-semibold text-text-faint mb-1 flex items-center gap-1">
+              <Shield className="h-3 w-3" /> Key Instruction
+            </p>
+            <p className="text-xs text-text-primary leading-relaxed">{DEMO_MATCH_BRIEF.keyInstruction}</p>
+          </div>
+
+          {/* Set piece */}
+          <div className="rounded-lg bg-surface-2 border border-border-1 p-3">
+            <p className="text-[10px] font-semibold text-text-faint mb-1">Set Pieces</p>
+            <p className="text-xs text-text-primary leading-relaxed">{DEMO_MATCH_BRIEF.setpiece}</p>
+          </div>
+
+          {/* Team message */}
+          <div className="rounded-lg bg-surface-2 border border-border-1 p-3">
+            <p className="text-[10px] font-semibold text-text-faint mb-1 flex items-center gap-1">
+              <MessageSquare className="h-3 w-3" /> Coach&apos;s Message
+            </p>
+            <p className="text-xs text-text-primary leading-relaxed italic">&ldquo;{DEMO_TEAM_MESSAGE}&rdquo;</p>
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 function ScheduleContent() {
@@ -134,6 +209,11 @@ function ScheduleContent() {
           </div>
         ))}
       </div>
+
+      {/* Match Brief card — shown when there's an upcoming match */}
+      {events.some((e) => e.event_type === 'match') && (
+        <MatchBriefCard />
+      )}
 
       {/* Events list */}
       <div className="space-y-3">

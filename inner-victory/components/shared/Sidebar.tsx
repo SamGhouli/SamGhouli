@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils'
 import {
   LayoutDashboard, Users, Activity, Video, Dumbbell, Trophy,
   HeartPulse, GraduationCap, UserPlus, CalendarDays, ShieldCheck,
-  Settings, AlertTriangle, ChevronRight, ClipboardList
+  Settings, AlertTriangle, ChevronRight, ClipboardList, Target
 } from 'lucide-react'
 import type { Team, User } from '@/types/database'
 
@@ -53,6 +53,7 @@ function getNavGroups(alertCount = 0, injuryCount = 0): NavGroup[] {
         { label: 'Film Room', href: '/coach/film', icon: Video },
         { label: 'Training Sessions', href: '/coach/sessions', icon: ClipboardList },
         { label: 'Training Log', href: '/coach/training', icon: Dumbbell },
+        { label: 'Match Prep', href: '/coach/match-prep', icon: Target },
         { label: 'Match Reports', href: '/coach/matches', icon: Trophy },
         { label: 'Recruitment', href: '/coach/recruitment', icon: UserPlus },
       ],
