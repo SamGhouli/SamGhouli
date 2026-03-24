@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { TopBar } from '@/components/shared/TopBar'
 import { DEMO_DATA } from '@/lib/demo/data'
+import { FormationPitch, PresentationOverlay } from '@/components/coach/FormationPitch'
+import type { FormationKey } from '@/components/coach/FormationPitch'
 import {
   Target,
   Shield,
@@ -20,13 +22,13 @@ import {
   CornerUpRight,
   Zap,
   BookOpen,
+  Maximize2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type SquadRole = 'starting' | 'bench' | 'unavailable'
-type FormationKey = '4-3-3' | '4-2-3-1' | '3-5-2' | '4-4-2' | '4-1-4-1'
 
 interface SquadEntry {
   athleteId: string
@@ -163,6 +165,7 @@ export default function MatchPrepPage() {
 
   const [formation, setFormation] = useState<FormationKey>('4-2-3-1')
   const [squad, setSquad] = useState<SquadEntry[]>(INITIAL_SQUAD)
+  const [showPresentation, setShowPresentation] = useState(false)
   const [tactics, setTactics] = useState<TacticalSection[]>(INITIAL_TACTICS)
   const [scout, setScout] = useState(INITIAL_SCOUT)
   const [teamMessage, setTeamMessage] = useState(
@@ -379,7 +382,7 @@ export default function MatchPrepPage() {
           {/* Formation & Tactics */}
           <Section icon={Target} title="Formation & Tactical Brief">
             {/* Formation picker */}
-            <div className="mb-5">
+            <div className="mb-4">
               <p className="text-xs font-semibold text-text-muted mb-2">Formation</p>
               <div className="flex flex-wrap gap-2">
                 {FORMATIONS.map((f) => (
@@ -398,6 +401,29 @@ export default function MatchPrepPage() {
                 ))}
               </div>
             </div>
+
+            {/* Lineup visualisation */}
+            <div className="mb-5 rounded-xl overflow-hidden border border-border-1">
+              <FormationPitch
+                formation={formation}
+                startingAthletes={squadGroups.starting.map((a) => ({
+                  id: a.id,
+                  full_name: a.full_name ?? '',
+                  initials: a.initials,
+                  avatar_color: a.avatar_color,
+                  position: a.position ?? 'Midfielder',
+                }))}
+              />
+            </div>
+
+            {/* Present to squad button */}
+            <button
+              onClick={() => setShowPresentation(true)}
+              className="mb-5 flex w-full items-center justify-center gap-2 rounded-lg border border-lime/50 bg-lime/5 py-2.5 text-sm font-semibold text-lime hover:bg-lime/10 transition-colors"
+            >
+              <Maximize2 className="h-4 w-4" />
+              Present to Squad (Full Screen)
+            </button>
 
             {/* Tactical sections */}
             <div className="space-y-3">
@@ -544,6 +570,23 @@ export default function MatchPrepPage() {
 
         </div>
       </div>
+
+      {/* Fullscreen presentation overlay */}
+      {showPresentation && (
+        <PresentationOverlay
+          formation={formation}
+          startingAthletes={squadGroups.starting.map((a) => ({
+            id: a.id,
+            full_name: a.full_name ?? '',
+            initials: a.initials,
+            avatar_color: a.avatar_color,
+            position: a.position ?? 'Midfielder',
+          }))}
+          matchTitle={match?.title}
+          teamName="McMaster Marauders"
+          onClose={() => setShowPresentation(false)}
+        />
+      )}
     </div>
   )
 }
