@@ -14,7 +14,7 @@ interface PositionSlot {
 
 interface SlotRow {
   slots: PositionSlot[]
-  yFrac: number // 0 = attacking end (top), 1 = defending end (GK)
+  yFrac: number
 }
 
 export interface PitchAthlete {
@@ -23,21 +23,27 @@ export interface PitchAthlete {
   initials?: string
   avatar_color?: string
   position: string
+  readiness?: number
 }
 
-interface FormationPitchProps {
+export interface MatchBriefData {
   formation: FormationKey
   startingAthletes: PitchAthlete[]
-  /** Compact embedded view vs full presentation  */
-  presentation?: boolean
-  /** Callback for close button in presentation mode */
-  onClose?: () => void
+  benchAthletes: PitchAthlete[]
+  tactics: { id: string; title: string; content: string }[]
+  corners: { taker: string; nearPost: string; farPost: string; edge: string; clearance: string }
+  freekicks: { taker: string; wall: string; runner: string }
+  oppositionThreats: string[]
+  oppositionWeaknesses: string[]
   matchTitle?: string
+  matchDate?: string
+  matchTime?: string
+  matchLocation?: string
   teamName?: string
+  onClose: () => void
 }
 
 // ── Formation layouts ──────────────────────────────────────────────────────────
-// yFrac: 0 = top (attacking), 1 = bottom (GK/defending)
 
 const LAYOUTS: Record<FormationKey, SlotRow[]> = {
   '4-3-3': [
@@ -74,7 +80,7 @@ const LAYOUTS: Record<FormationKey, SlotRow[]> = {
   ],
 }
 
-// ── Auto-assign athletes to slots ─────────────────────────────────────────────
+// ── Athlete → slot assignment ──────────────────────────────────────────────────
 
 function getPositionType(pos: string): PositionType {
   const p = pos.toLowerCase()
@@ -84,336 +90,379 @@ function getPositionType(pos: string): PositionType {
   return 'fwd'
 }
 
-function assignAthletes(
-  athletes: PitchAthlete[],
-  layout: SlotRow[]
-): (PitchAthlete | null)[] {
-  // Group athletes by position type
+function assignAthletes(athletes: PitchAthlete[], layout: SlotRow[]) {
   const pools: Record<PositionType, PitchAthlete[]> = { gk: [], def: [], mid: [], fwd: [] }
-  for (const a of athletes) {
-    pools[getPositionType(a.position)].push(a)
-  }
+  for (const a of athletes) pools[getPositionType(a.position)].push(a)
   const cursors: Record<PositionType, number> = { gk: 0, def: 0, mid: 0, fwd: 0 }
 
   const result: (PitchAthlete | null)[] = []
   for (const row of layout) {
     for (const slot of row.slots) {
       const t = slot.type
-      const pool = pools[t]
-      if (cursors[t] < pool.length) {
-        result.push(pool[cursors[t]++])
-      } else {
-        result.push(null)
-      }
+      result.push(cursors[t] < pools[t].length ? pools[t][cursors[t]++] : null)
     }
   }
   return result
 }
 
-// ── SVG Pitch constants ────────────────────────────────────────────────────────
-// ViewBox: 360 × 520
+/** Returns starting lineup as ordered { athlete | null, slotLabel } pairs */
+function buildLineup(athletes: PitchAthlete[], formation: FormationKey) {
+  const layout = LAYOUTS[formation]
+  const assigned = assignAthletes(athletes, layout)
+  let idx = 0
+  const rows: { athlete: PitchAthlete | null; slotLabel: string }[][] = []
+  for (const row of layout) {
+    const cells = row.slots.map((slot) => ({ athlete: assigned[idx++] ?? null, slotLabel: slot.label }))
+    rows.push(cells)
+  }
+  return rows
+}
+
+// ── SVG pitch constants ────────────────────────────────────────────────────────
+
 const VW = 360
 const VH = 520
-const PL = 22   // pitch left
-const PT = 18   // pitch top
-const PR = 338  // pitch right (PL + 316)
-const PB = 502  // pitch bottom (PT + 484)
-const PW = PR - PL  // 316
-const PH = PB - PT  // 484
+const PL = 22
+const PT = 18
+const PR = 338
+const PB = 502
+const PW = PR - PL
+const PH = PB - PT
 
-const gx = (frac: number) => PL + frac * PW
-const gy = (frac: number) => PT + frac * PH
+const gx = (f: number) => PL + f * PW
+const gy = (f: number) => PT + f * PH
+const rowXFracs = (n: number) => Array.from({ length: n }, (_, i) => (i + 1) / (n + 1))
+const surname = (name: string) => { const p = name.trim().split(' '); return p[p.length - 1] }
 
-// Row x positions: evenly space N nodes across the pitch width
-function rowXFracs(n: number): number[] {
-  return Array.from({ length: n }, (_, i) => (i + 1) / (n + 1))
-}
-
-// Truncate last name for display
-function surname(fullName: string) {
-  const parts = fullName.trim().split(' ')
-  return parts[parts.length - 1]
-}
-
-// ── Pitch SVG ─────────────────────────────────────────────────────────────────
+// ── SVG sub-components ────────────────────────────────────────────────────────
 
 function PitchMarkings() {
-  const lineProps = { fill: 'none', stroke: 'rgba(255,255,255,0.30)', strokeWidth: 1.5 }
-  const halfY = PT + PH / 2  // 260
-
+  const line = { fill: 'none', stroke: 'rgba(255,255,255,0.28)', strokeWidth: 1.5 }
+  const halfY = PT + PH / 2
   return (
     <g>
-      {/* Grass stripes */}
       {Array.from({ length: 6 }, (_, i) => (
-        <rect
-          key={i}
-          x={PL} y={PT + i * (PH / 6)}
-          width={PW} height={PH / 6}
-          fill={i % 2 === 0 ? 'rgba(0,0,0,0.06)' : 'transparent'}
-        />
+        <rect key={i} x={PL} y={PT + i * (PH / 6)} width={PW} height={PH / 6}
+          fill={i % 2 === 0 ? 'rgba(0,0,0,0.07)' : 'transparent'} />
       ))}
-
-      {/* Pitch outline */}
-      <rect x={PL} y={PT} width={PW} height={PH} {...lineProps} />
-
-      {/* Halfway line */}
-      <line x1={PL} y1={halfY} x2={PR} y2={halfY} {...lineProps} />
-
-      {/* Centre circle */}
-      <circle cx={gx(0.5)} cy={halfY} r={52} {...lineProps} />
+      <rect x={PL} y={PT} width={PW} height={PH} {...line} />
+      <line x1={PL} y1={halfY} x2={PR} y2={halfY} {...line} />
+      <circle cx={gx(0.5)} cy={halfY} r={52} {...line} />
       <circle cx={gx(0.5)} cy={halfY} r={2.5} fill="rgba(255,255,255,0.4)" />
-
-      {/* Top penalty box (opponent's) */}
-      <rect x={gx(0.24)} y={PT} width={PW * 0.52} height={PH * 0.17} {...lineProps} />
-      {/* Top 6-yard box */}
-      <rect x={gx(0.34)} y={PT} width={PW * 0.32} height={PH * 0.07} {...lineProps} />
-      {/* Top penalty spot */}
+      <rect x={gx(0.24)} y={PT} width={PW * 0.52} height={PH * 0.17} {...line} />
+      <rect x={gx(0.34)} y={PT} width={PW * 0.32} height={PH * 0.07} {...line} />
       <circle cx={gx(0.5)} cy={PT + PH * 0.135} r={2.5} fill="rgba(255,255,255,0.4)" />
-
-      {/* Bottom penalty box (defending) */}
-      <rect x={gx(0.24)} y={PB - PH * 0.17} width={PW * 0.52} height={PH * 0.17} {...lineProps} />
-      {/* Bottom 6-yard box */}
-      <rect x={gx(0.34)} y={PB - PH * 0.07} width={PW * 0.32} height={PH * 0.07} {...lineProps} />
-      {/* Bottom penalty spot */}
+      <rect x={gx(0.24)} y={PB - PH * 0.17} width={PW * 0.52} height={PH * 0.17} {...line} />
+      <rect x={gx(0.34)} y={PB - PH * 0.07} width={PW * 0.32} height={PH * 0.07} {...line} />
       <circle cx={gx(0.5)} cy={PB - PH * 0.135} r={2.5} fill="rgba(255,255,255,0.4)" />
-
-      {/* Goals */}
-      <rect x={gx(0.40)} y={PT - 10} width={PW * 0.20} height={10} fill="none" stroke="rgba(255,255,255,0.45)" strokeWidth={1.5} />
-      <rect x={gx(0.40)} y={PB} width={PW * 0.20} height={10} fill="none" stroke="rgba(255,255,255,0.45)" strokeWidth={1.5} />
+      <rect x={gx(0.40)} y={PT - 10} width={PW * 0.20} height={10}
+        fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth={1.5} />
+      <rect x={gx(0.40)} y={PB} width={PW * 0.20} height={10}
+        fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth={1.5} />
     </g>
   )
 }
 
-// ── Player node ────────────────────────────────────────────────────────────────
-
-function PlayerNode({
-  cx, cy, athlete, posLabel, r,
-}: {
-  cx: number
-  cy: number
-  athlete: PitchAthlete | null
-  posLabel: string
-  r: number
+function PlayerNode({ cx, cy, athlete, posLabel, r }: {
+  cx: number; cy: number; athlete: PitchAthlete | null; posLabel: string; r: number
 }) {
-  const fs = r * 0.5     // initials font size
-  const labelFs = r * 0.38
-  const nameFs = r * 0.40
-  const nameY = cy + r + nameFs + 2
+  const fs = r * 0.5
+  const labelFs = r * 0.36
+  const nameFs = r * 0.38
 
-  if (!athlete) {
-    return (
-      <g>
-        <circle
-          cx={cx} cy={cy} r={r}
-          fill="rgba(255,255,255,0.04)"
-          stroke="rgba(255,255,255,0.20)"
-          strokeWidth={1.5}
-          strokeDasharray="4 3"
-        />
-        <text
-          x={cx} y={cy + labelFs * 0.4}
-          textAnchor="middle"
-          fill="rgba(255,255,255,0.30)"
-          fontSize={labelFs + 1}
-          fontWeight={700}
-          fontFamily="system-ui, sans-serif"
-        >
-          {posLabel}
-        </text>
-      </g>
-    )
-  }
+  if (!athlete) return (
+    <g>
+      <circle cx={cx} cy={cy} r={r} fill="rgba(255,255,255,0.03)"
+        stroke="rgba(255,255,255,0.18)" strokeWidth={1.5} strokeDasharray="4 3" />
+      <text x={cx} y={cy + labelFs * 0.4} textAnchor="middle"
+        fill="rgba(255,255,255,0.28)" fontSize={labelFs + 1} fontWeight={700}
+        fontFamily="system-ui, sans-serif">{posLabel}</text>
+    </g>
+  )
 
   const color = athlete.avatar_color ?? '#7a869a'
-  // Hex → rgba with opacity
-  const r_ = parseInt(color.slice(1, 3), 16)
-  const g_ = parseInt(color.slice(3, 5), 16)
-  const b_ = parseInt(color.slice(5, 7), 16)
-  const bgFill = `rgba(${r_},${g_},${b_},0.85)`
-  const shadowFill = `rgba(${r_},${g_},${b_},0.25)`
+  const [r_, g_, b_] = [parseInt(color.slice(1, 3), 16), parseInt(color.slice(3, 5), 16), parseInt(color.slice(5, 7), 16)]
   const sn = surname(athlete.full_name)
-  const displayName = sn.length > 9 ? sn.slice(0, 8) + '.' : sn
 
   return (
     <g>
-      {/* Drop shadow ring */}
-      <circle cx={cx} cy={cy + 1.5} r={r + 1} fill={shadowFill} />
-      {/* Main circle */}
-      <circle cx={cx} cy={cy} r={r} fill={bgFill} stroke="rgba(255,255,255,0.6)" strokeWidth={1.5} />
-      {/* Position label (small, top of circle) */}
-      <text
-        x={cx} y={cy - fs * 0.35}
-        textAnchor="middle"
-        fill="rgba(255,255,255,0.70)"
-        fontSize={labelFs}
-        fontWeight={600}
-        fontFamily="system-ui, sans-serif"
-        letterSpacing="0.5"
-      >
-        {posLabel}
-      </text>
-      {/* Initials */}
-      <text
-        x={cx} y={cy + fs * 0.65}
-        textAnchor="middle"
-        fill="white"
-        fontSize={fs}
-        fontWeight={800}
-        fontFamily="system-ui, sans-serif"
-      >
+      <circle cx={cx} cy={cy + 1.5} r={r + 1} fill={`rgba(${r_},${g_},${b_},0.22)`} />
+      <circle cx={cx} cy={cy} r={r} fill={`rgba(${r_},${g_},${b_},0.88)`}
+        stroke="rgba(255,255,255,0.55)" strokeWidth={1.5} />
+      <text x={cx} y={cy - fs * 0.35} textAnchor="middle"
+        fill="rgba(255,255,255,0.65)" fontSize={labelFs} fontWeight={600}
+        fontFamily="system-ui, sans-serif" letterSpacing="0.5">{posLabel}</text>
+      <text x={cx} y={cy + fs * 0.65} textAnchor="middle"
+        fill="white" fontSize={fs} fontWeight={800}
+        fontFamily="system-ui, sans-serif">
         {athlete.initials ?? athlete.full_name.slice(0, 2).toUpperCase()}
       </text>
-      {/* Surname below circle */}
-      <text
-        x={cx} y={nameY}
-        textAnchor="middle"
-        fill="rgba(255,255,255,0.88)"
-        fontSize={nameFs}
-        fontWeight={600}
-        fontFamily="system-ui, sans-serif"
-      >
-        {displayName}
+      <text x={cx} y={cy + r + nameFs + 2} textAnchor="middle"
+        fill="rgba(255,255,255,0.85)" fontSize={nameFs} fontWeight={600}
+        fontFamily="system-ui, sans-serif">
+        {(sn.length > 9 ? sn.slice(0, 8) + '.' : sn)}
       </text>
     </g>
   )
 }
 
-// ── Main component ─────────────────────────────────────────────────────────────
+// ── Core SVG pitch (shared between embedded and overlay) ──────────────────────
 
-export function FormationPitch({
-  formation,
-  startingAthletes,
-  presentation = false,
-  onClose,
-  matchTitle,
-  teamName,
-}: FormationPitchProps) {
+function PitchSvg({ formation, startingAthletes, nodeR = 19, style }: {
+  formation: FormationKey
+  startingAthletes: PitchAthlete[]
+  nodeR?: number
+  style?: React.CSSProperties
+}) {
   const layout = LAYOUTS[formation]
   const assigned = assignAthletes(startingAthletes, layout)
-
-  // Node radius: slightly larger in presentation mode
-  const nodeR = presentation ? 24 : 19
-
-  // Build flat list of (cx, cy, athlete, posLabel) tuples
   let slotIdx = 0
   const nodes: { cx: number; cy: number; athlete: PitchAthlete | null; posLabel: string }[] = []
 
   for (const row of layout) {
     const xFracs = rowXFracs(row.slots.length)
     row.slots.forEach((slot, si) => {
-      nodes.push({
-        cx: gx(xFracs[si]),
-        cy: gy(row.yFrac),
-        athlete: assigned[slotIdx] ?? null,
-        posLabel: slot.label,
-      })
+      nodes.push({ cx: gx(xFracs[si]), cy: gy(row.yFrac), athlete: assigned[slotIdx] ?? null, posLabel: slot.label })
       slotIdx++
     })
   }
 
   return (
-    <div className="relative w-full">
-      {/* Present / close button */}
-      {onClose ? (
-        <button
-          onClick={onClose}
-          className="absolute top-3 right-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors"
-          aria-label="Close"
-        >
-          <X className="h-4 w-4" />
-        </button>
-      ) : null}
+    <svg viewBox={`0 0 ${VW} ${VH}`} style={style} aria-label={`Formation ${formation}`}>
+      <rect x={0} y={0} width={VW} height={VH} fill="#182e1a" rx={6} />
+      <PitchMarkings />
+      <text x={VW / 2} y={VH - 6} textAnchor="middle"
+        fill="rgba(255,255,255,0.25)" fontSize={10} fontWeight={700}
+        fontFamily="system-ui" letterSpacing="2">{formation}</text>
+      <text x={PL + 3} y={PT + 13} fill="rgba(255,255,255,0.20)" fontSize={8} fontFamily="system-ui">▲ ATT</text>
+      <text x={PL + 3} y={PB - 3} fill="rgba(255,255,255,0.20)" fontSize={8} fontFamily="system-ui">▼ DEF</text>
+      {nodes.map((n, i) => <PlayerNode key={i} {...n} r={nodeR} />)}
+    </svg>
+  )
+}
 
-      {/* Header (presentation mode only) */}
-      {presentation && (matchTitle || teamName) && (
-        <div className="text-center pt-4 pb-2 px-4">
-          {teamName && (
-            <p className="text-xs font-bold uppercase tracking-widest text-lime mb-0.5">{teamName}</p>
-          )}
-          {matchTitle && (
-            <h2 className="text-lg font-black text-white leading-tight">{matchTitle}</h2>
-          )}
-          <p className="mt-1 inline-block rounded-full border border-lime/40 bg-lime/10 px-3 py-0.5 text-sm font-bold text-lime">
-            {formation}
-          </p>
-        </div>
-      )}
+// ── Embedded component (used inline in the page) ──────────────────────────────
 
-      {/* SVG Pitch */}
-      <svg
-        viewBox={`0 0 ${VW} ${VH}`}
-        className="w-full"
-        style={{ maxHeight: presentation ? '80vh' : '480px' }}
-        aria-label={`Formation: ${formation}`}
-      >
-        {/* Pitch background */}
-        <rect x={0} y={0} width={VW} height={VH} fill="#1a3a1c" rx={presentation ? 0 : 12} />
-
-        <PitchMarkings />
-
-        {/* Formation label (embedded mode) */}
-        {!presentation && (
-          <text
-            x={VW / 2} y={VH - 6}
-            textAnchor="middle"
-            fill="rgba(255,255,255,0.30)"
-            fontSize={11}
-            fontWeight={700}
-            fontFamily="system-ui, sans-serif"
-            letterSpacing="2"
-          >
-            {formation}
-          </text>
-        )}
-
-        {/* Direction arrows */}
-        <text x={PL + 4} y={PT + 14} fill="rgba(255,255,255,0.22)" fontSize={9} fontFamily="system-ui">▲ ATT</text>
-        <text x={PL + 4} y={PB - 4} fill="rgba(255,255,255,0.22)" fontSize={9} fontFamily="system-ui">▼ DEF</text>
-
-        {/* Player nodes */}
-        {nodes.map((n, i) => (
-          <PlayerNode key={i} {...n} r={nodeR} />
-        ))}
-      </svg>
+export function FormationPitch({ formation, startingAthletes }: {
+  formation: FormationKey
+  startingAthletes: PitchAthlete[]
+}) {
+  return (
+    <div className="w-full bg-[#182e1a] rounded-xl overflow-hidden">
+      <PitchSvg formation={formation} startingAthletes={startingAthletes}
+        style={{ width: '100%', display: 'block' }} />
     </div>
   )
 }
 
-// ── Fullscreen presentation overlay ───────────────────────────────────────────
+// ── Helpers for the right panel ────────────────────────────────────────────────
 
-interface PresentationOverlayProps {
-  formation: FormationKey
-  startingAthletes: PitchAthlete[]
-  matchTitle?: string
-  teamName?: string
-  onClose: () => void
+function rdColor(s?: number) {
+  if (!s) return '#94a3b8'
+  if (s >= 75) return '#4ade80'
+  if (s >= 55) return '#fbbf24'
+  return '#fb7185'
 }
 
-export function PresentationOverlay({
-  formation,
-  startingAthletes,
-  matchTitle,
-  teamName,
-  onClose,
-}: PresentationOverlayProps) {
+function Section({ title, color = '#d4ff5c', children }: {
+  title: string; color?: string; children: React.ReactNode
+}) {
   return (
-    <div
-      className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
-    >
-      <div className="w-full max-w-md px-4">
-        <FormationPitch
-          formation={formation}
-          startingAthletes={startingAthletes}
-          presentation
-          onClose={onClose}
-          matchTitle={matchTitle}
-          teamName={teamName}
-        />
+    <div className="mb-5">
+      <p className="mb-2 text-[10px] font-black uppercase tracking-[0.12em]" style={{ color }}>{title}</p>
+      {children}
+    </div>
+  )
+}
+
+// ── Full match brief presentation overlay ─────────────────────────────────────
+
+export function PresentationOverlay({
+  formation, startingAthletes, benchAthletes,
+  tactics, corners, freekicks,
+  oppositionThreats, oppositionWeaknesses,
+  matchTitle, matchDate, matchTime, matchLocation, teamName,
+  onClose,
+}: MatchBriefData) {
+  const lineup = buildLineup(startingAthletes, formation).flat()
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col bg-[#070f08] text-white overflow-hidden">
+
+      {/* ── Header ── */}
+      <div className="flex-none flex items-center justify-between gap-6 border-b border-white/10 px-6 py-3">
+        <div className="flex items-center gap-4 min-w-0">
+          {teamName && (
+            <span className="shrink-0 rounded bg-lime/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-lime">
+              {teamName}
+            </span>
+          )}
+          <h1 className="truncate text-base font-black text-white">{matchTitle ?? 'Match Preparation'}</h1>
+        </div>
+        <div className="flex items-center gap-6 shrink-0">
+          {(matchDate || matchTime) && (
+            <div className="text-right">
+              {matchDate && <p className="text-xs text-white/50">{matchDate}</p>}
+              {matchTime && <p className="text-xs font-semibold text-white/70">{matchTime}{matchLocation ? ` · ${matchLocation}` : ''}</p>}
+            </div>
+          )}
+          <button
+            onClick={onClose}
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
-      {/* Footer hint */}
-      <p className="mt-4 text-xs text-white/30">Tap outside or press Esc to close</p>
+      {/* ── Body: pitch left + notes right ── */}
+      <div className="flex flex-1 min-h-0">
+
+        {/* LEFT — Formation pitch */}
+        <div className="flex-none flex flex-col items-center justify-center border-r border-white/10 bg-[#0d1f0e] px-4 py-4"
+          style={{ width: 'clamp(280px, 38vw, 440px)' }}>
+          <PitchSvg
+            formation={formation}
+            startingAthletes={startingAthletes}
+            nodeR={20}
+            style={{
+              height: 'min(calc(100vh - 130px), 560px)',
+              width: 'auto',
+              display: 'block',
+              margin: '0 auto',
+            }}
+          />
+          <p className="mt-2 text-[11px] font-black tracking-[0.2em] text-lime/70">{formation}</p>
+        </div>
+
+        {/* RIGHT — Match notes panel */}
+        <div className="flex-1 min-w-0 overflow-y-auto px-6 py-5 space-y-0">
+
+          {/* ── Squad ── */}
+          <Section title="Squad">
+            <div className="grid grid-cols-2 gap-x-6 gap-y-0">
+              {/* Starting XI */}
+              <div>
+                <p className="mb-1.5 text-[10px] font-bold text-white/40 uppercase tracking-wide">
+                  Starting XI ({startingAthletes.length})
+                </p>
+                {lineup.map((entry, i) => {
+                  if (!entry.athlete) return null
+                  const a = entry.athlete
+                  return (
+                    <div key={i} className="flex items-center gap-2 py-[3px]">
+                      <span className="w-7 shrink-0 rounded px-1 py-0.5 text-center text-[10px] font-black"
+                        style={{ backgroundColor: `${a.avatar_color ?? '#7a869a'}20`, color: a.avatar_color ?? '#7a869a' }}>
+                        {entry.slotLabel}
+                      </span>
+                      <span className="flex-1 truncate text-xs font-medium text-white/90">{a.full_name}</span>
+                      {a.readiness !== undefined && (
+                        <span className="shrink-0 text-[11px] font-bold tabular-nums"
+                          style={{ color: rdColor(a.readiness) }}>{a.readiness}</span>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Bench + Out */}
+              <div>
+                {benchAthletes.length > 0 && (
+                  <>
+                    <p className="mb-1.5 text-[10px] font-bold text-white/40 uppercase tracking-wide">
+                      Bench ({benchAthletes.length})
+                    </p>
+                    {benchAthletes.map((a) => (
+                      <div key={a.id} className="flex items-center gap-2 py-[3px]">
+                        <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: '#fbbf24' }} />
+                        <span className="flex-1 truncate text-xs text-white/70">{a.full_name}</span>
+                        {a.readiness !== undefined && (
+                          <span className="shrink-0 text-[11px] font-bold tabular-nums"
+                            style={{ color: rdColor(a.readiness) }}>{a.readiness}</span>
+                        )}
+                      </div>
+                    ))}
+                  </>
+                )}
+              </div>
+            </div>
+          </Section>
+
+          <div className="border-t border-white/8 mb-5" />
+
+          {/* ── Tactical notes ── */}
+          <Section title="Key Tactical Notes" color="#60a5fa">
+            <div className="space-y-2">
+              {tactics.map((t) => (
+                <div key={t.id} className="flex gap-2">
+                  <span className="mt-px shrink-0 text-[10px] font-black text-blue-400/70 uppercase w-[52px]">
+                    {t.title.split(' ')[0]}
+                  </span>
+                  <p className="flex-1 text-xs leading-relaxed text-white/75">{t.content}</p>
+                </div>
+              ))}
+            </div>
+          </Section>
+
+          <div className="border-t border-white/8 mb-5" />
+
+          {/* ── Set pieces + Opposition side by side ── */}
+          <div className="grid grid-cols-2 gap-6">
+
+            {/* Set Pieces */}
+            <div>
+              <p className="mb-2 text-[10px] font-black uppercase tracking-[0.12em] text-amber-400">
+                Set Pieces
+              </p>
+              <div className="space-y-1.5">
+                <div>
+                  <p className="text-[10px] text-white/40 mb-0.5">Corners</p>
+                  <p className="text-xs text-white/80">
+                    <span className="font-semibold text-white">{corners.taker}</span> takes
+                  </p>
+                  <p className="text-[11px] text-white/55">
+                    Near post: {corners.nearPost} · Far post: {corners.farPost}
+                  </p>
+                  <p className="text-[11px] text-white/55">Edge: {corners.edge}</p>
+                </div>
+                <div className="mt-2">
+                  <p className="text-[10px] text-white/40 mb-0.5">Free Kicks</p>
+                  <p className="text-xs text-white/80">
+                    <span className="font-semibold text-white">{freekicks.taker}</span> takes
+                  </p>
+                  <p className="text-[11px] text-white/55">Runner: {freekicks.runner}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Opposition */}
+            <div>
+              <p className="mb-2 text-[10px] font-black uppercase tracking-[0.12em] text-rose-400">
+                Opposition
+              </p>
+              <div className="space-y-1">
+                {oppositionThreats.map((t, i) => (
+                  <div key={i} className="flex gap-1.5 text-[11px] text-white/75">
+                    <span className="shrink-0 text-rose-400/80">⚠</span>
+                    <span>{t}</span>
+                  </div>
+                ))}
+              </div>
+              {oppositionWeaknesses.length > 0 && (
+                <div className="mt-2 space-y-1">
+                  {oppositionWeaknesses.map((w, i) => (
+                    <div key={i} className="flex gap-1.5 text-[11px] text-white/60">
+                      <span className="shrink-0 text-green-400/70">✓</span>
+                      <span>{w}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

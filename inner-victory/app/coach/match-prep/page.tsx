@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import { TopBar } from '@/components/shared/TopBar'
 import { DEMO_DATA } from '@/lib/demo/data'
 import { FormationPitch, PresentationOverlay } from '@/components/coach/FormationPitch'
-import type { FormationKey } from '@/components/coach/FormationPitch'
+import type { FormationKey, MatchBriefData } from '@/components/coach/FormationPitch'
 import {
   Target,
   Shield,
@@ -412,6 +412,7 @@ export default function MatchPrepPage() {
                   initials: a.initials,
                   avatar_color: a.avatar_color,
                   position: a.position ?? 'Midfielder',
+                  readiness: DEMO_READINESS_MAP[a.id],
                 }))}
               />
             </div>
@@ -572,21 +573,33 @@ export default function MatchPrepPage() {
       </div>
 
       {/* Fullscreen presentation overlay */}
-      {showPresentation && (
-        <PresentationOverlay
-          formation={formation}
-          startingAthletes={squadGroups.starting.map((a) => ({
-            id: a.id,
-            full_name: a.full_name ?? '',
-            initials: a.initials,
-            avatar_color: a.avatar_color,
-            position: a.position ?? 'Midfielder',
-          }))}
-          matchTitle={match?.title}
-          teamName="McMaster Marauders"
-          onClose={() => setShowPresentation(false)}
-        />
-      )}
+      {showPresentation && (() => {
+        const toPA = (a: typeof squadGroups.starting[number]) => ({
+          id: a.id,
+          full_name: a.full_name ?? '',
+          initials: a.initials,
+          avatar_color: a.avatar_color,
+          position: a.position ?? 'Midfielder',
+          readiness: DEMO_READINESS_MAP[a.id],
+        })
+        const briefData: MatchBriefData = {
+          formation,
+          startingAthletes: squadGroups.starting.map(toPA),
+          benchAthletes: squadGroups.bench.map(toPA),
+          tactics,
+          corners,
+          freekicks,
+          oppositionThreats: scout.threats,
+          oppositionWeaknesses: scout.weaknesses,
+          matchTitle: match?.title,
+          matchDate: match ? new Date(match.event_date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' }) : undefined,
+          matchTime: match ? formatTime(match.start_time) : undefined,
+          matchLocation: match?.location,
+          teamName: 'McMaster Marauders',
+          onClose: () => setShowPresentation(false),
+        }
+        return <PresentationOverlay {...briefData} />
+      })()}
     </div>
   )
 }
