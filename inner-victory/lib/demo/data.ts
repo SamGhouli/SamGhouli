@@ -10,6 +10,10 @@ import type {
   StaffNote,
   MatchStat,
   TrainingSession,
+  SessionPlanV2,
+  WorkloadEntry,
+  InjuryRecord,
+  AvailabilityHistoryEntry,
 } from '@/types/database'
 
 // ---------------------------------------------------------------------------
@@ -864,6 +868,304 @@ export const DEMO_RECENT_ACTIVITY = [
 ]
 
 // ---------------------------------------------------------------------------
+// Session Plans V2
+// ---------------------------------------------------------------------------
+export const DEMO_SESSION_PLANS: SessionPlanV2[] = [
+  {
+    id: 'spv2-001',
+    title: 'Pre-Match Activation — Western Away',
+    date: '2026-03-25',
+    startTime: '10:00',
+    venue: 'Ron Joyce Stadium — Pitch A',
+    sessionType: 'pre-match',
+    status: 'planned',
+    blocks: [
+      {
+        id: 'blk-001',
+        type: 'warm-up',
+        name: 'Dynamic Warm-Up',
+        durationMins: 15,
+        intensity: 'low',
+        drills: ['Dynamic stretching circuit', 'Light jog with direction changes', 'Rondo 4v2'],
+        coachNotes: 'Keep it light — legs must be fresh for travel tomorrow.',
+      },
+      {
+        id: 'blk-002',
+        type: 'technical',
+        name: 'One-Touch Passing Patterns',
+        durationMins: 20,
+        intensity: 'low',
+        drills: ['Triangle passing (first touch)', 'Long switch passes', 'Combination play patterns'],
+        coachNotes: 'Pair players by position. Focus on quality not quantity.',
+      },
+      {
+        id: 'blk-003',
+        type: 'set-pieces',
+        name: 'Set Piece Rehearsal',
+        durationMins: 15,
+        intensity: 'low',
+        drills: ['Corner routines A, B, C and short', 'Defensive set piece walkthrough', 'Free kick A (near post)'],
+        coachNotes: 'Run each routine twice. No contact — walkthrough only.',
+      },
+      {
+        id: 'blk-004',
+        type: 'cool-down',
+        name: 'Cool-Down & Team Talk',
+        durationMins: 10,
+        intensity: 'low',
+        drills: ['Light jog and shake-out', 'Static stretching', 'Team huddle — match day instructions'],
+        coachNotes: 'End on a high. Confirm travel time and bus meeting point.',
+      },
+    ],
+  },
+  {
+    id: 'spv2-002',
+    title: 'Tactical Press Patterns',
+    date: '2026-03-22',
+    startTime: '09:00',
+    venue: 'Ron Joyce Stadium — Pitch A',
+    sessionType: 'tactical',
+    status: 'planned',
+    blocks: [
+      {
+        id: 'blk-010',
+        type: 'warm-up',
+        name: 'Activation Warm-Up',
+        durationMins: 15,
+        intensity: 'low',
+        drills: ['Rondo 4v2', 'Passing patterns with movement', 'Dynamic mobility'],
+        coachNotes: 'High energy from the start — set the tone.',
+      },
+      {
+        id: 'blk-011',
+        type: 'tactical',
+        name: 'Pressing Triggers',
+        durationMins: 25,
+        intensity: 'medium',
+        drills: ['Shadow pressing walkthrough', '5v5+2 press and counter', 'Defensive shape transition drill'],
+        coachNotes: 'Watch Jordan and Elena during transition sprints — limit exposure.',
+      },
+      {
+        id: 'blk-012',
+        type: 'physical',
+        name: 'High-Intensity Conditioning',
+        durationMins: 20,
+        intensity: 'high',
+        drills: ['Sprint intervals (4×40m)', 'High-intensity 8v8 press scenario', 'Repeated sprint tolerance'],
+        coachNotes: 'Jordan on limited today — modified running loads only. Elena keep to 70% sprint intensity.',
+      },
+      {
+        id: 'blk-013',
+        type: 'set-pieces',
+        name: 'Corner Routines',
+        durationMins: 15,
+        intensity: 'low',
+        drills: ['Attacking corners (A and B variant)', 'Short corner combo', 'Defensive corner clearing drill'],
+        coachNotes: 'Liam delivering all corners today. Review video clip from Laurier match.',
+      },
+      {
+        id: 'blk-014',
+        type: 'cool-down',
+        name: 'Cool-Down',
+        durationMins: 10,
+        intensity: 'low',
+        drills: ['5-minute jog', 'Team static stretch', 'Session debrief'],
+        coachNotes: 'Collect RPE data before athletes leave.',
+      },
+    ],
+  },
+]
+
+// ---------------------------------------------------------------------------
+// Workload Entries (7 days × 9 athletes)
+// ---------------------------------------------------------------------------
+function makeLoad(durationMins: number, rpe: number): number {
+  const modifiers: Record<number, number> = { 1: 0.6, 2: 0.8, 3: 1.0, 4: 1.2, 5: 1.4 }
+  return Math.round(durationMins * (modifiers[rpe] ?? 1.0))
+}
+
+const WORKLOAD_DATES = [
+  '2026-03-20', '2026-03-19', '2026-03-18', '2026-03-17',
+  '2026-03-16', '2026-03-15', '2026-03-14',
+]
+
+// Baseline loads per athlete (different to create interesting patterns)
+// Amara: high (overtraining story), Jordan: elevated, rest: normal range
+const ATHLETE_WORKLOAD_PROFILES: Record<string, { durationBase: number; rpeBase: number }> = {
+  [DEMO_ATHLETE_IDS.marcus]: { durationBase: 75, rpeBase: 3 },
+  [DEMO_ATHLETE_IDS.priya]: { durationBase: 75, rpeBase: 3 },
+  [DEMO_ATHLETE_IDS.jordan]: { durationBase: 70, rpeBase: 4 }, // elevated
+  [DEMO_ATHLETE_IDS.sofia]: { durationBase: 72, rpeBase: 3 },
+  [DEMO_ATHLETE_IDS.liam]: { durationBase: 75, rpeBase: 3 },
+  [DEMO_ATHLETE_IDS.amara]: { durationBase: 90, rpeBase: 5 }, // overtraining
+  [DEMO_ATHLETE_IDS.noah]: { durationBase: 72, rpeBase: 3 },
+  [DEMO_ATHLETE_IDS.elena]: { durationBase: 68, rpeBase: 3 },
+  [DEMO_ATHLETE_IDS.devonte]: { durationBase: 75, rpeBase: 3 },
+}
+
+let _wlId = 1
+export const DEMO_WORKLOAD_ENTRIES: WorkloadEntry[] = WORKLOAD_DATES.flatMap((date) =>
+  Object.entries(ATHLETE_WORKLOAD_PROFILES).map(([athleteId, profile]) => {
+    const duration = profile.durationBase + Math.floor(Math.random() * 10 - 5)
+    const rpe = Math.max(1, Math.min(5, profile.rpeBase + Math.floor(Math.random() * 3 - 1)))
+    return {
+      id: `wl-${String(_wlId++).padStart(3, '0')}`,
+      athleteId,
+      date,
+      durationMins: duration,
+      rpe,
+      load: makeLoad(duration, rpe),
+      sessionType: 'tactical',
+    } satisfies WorkloadEntry
+  })
+)
+
+// ---------------------------------------------------------------------------
+// Injury Records
+// ---------------------------------------------------------------------------
+export const DEMO_INJURY_RECORDS: InjuryRecord[] = [
+  {
+    id: 'inj-001',
+    athleteId: DEMO_ATHLETE_IDS.jordan,
+    injuryType: 'soft-tissue',
+    bodyLocation: 'Left Knee',
+    severity: 2,
+    dateOfOnset: '2026-03-18',
+    mechanism: 'training',
+    description: 'Left knee soreness following high-intensity session. Possible patellar tendon irritation.',
+    expectedReturn: '2026-04-01',
+    treatmentPlan: 'Rest, ice, compression for 48h. Physio assessment day 3. Graduated return from day 5.',
+    rtpStage: 1,
+    stageEnteredAt: { 1: '2026-03-21T00:00:00Z' },
+  },
+  {
+    id: 'inj-002',
+    athleteId: DEMO_ATHLETE_IDS.elena,
+    injuryType: 'soft-tissue',
+    bodyLocation: 'Right Hamstring',
+    severity: 1,
+    dateOfOnset: '2026-03-20',
+    mechanism: 'training',
+    description: 'Mild hamstring tightness reported by athlete. No mechanism of injury identified.',
+    expectedReturn: '2026-03-27',
+    treatmentPlan: 'Monitoring. No sprinting until symptom-free. Physio review before return to full.',
+    rtpStage: 0,
+    stageEnteredAt: {},
+  },
+  {
+    id: 'inj-003',
+    athleteId: DEMO_ATHLETE_IDS.amara,
+    injuryType: 'overuse',
+    bodyLocation: 'General',
+    severity: 1,
+    dateOfOnset: '2026-03-21',
+    mechanism: 'training',
+    description: 'Fatigue and overtraining syndrome. Athlete reported feeling burned out.',
+    expectedReturn: '2026-03-26',
+    treatmentPlan: 'Mandatory rest. No training for 48h minimum. Review wellness scores daily.',
+    rtpStage: 0,
+    stageEnteredAt: {},
+  },
+]
+
+// ---------------------------------------------------------------------------
+// Availability History (last 7 days for flagged athletes)
+// ---------------------------------------------------------------------------
+export const DEMO_AVAILABILITY_HISTORY: AvailabilityHistoryEntry[] = [
+  // Jordan — escalating knee concern
+  {
+    id: 'avh-001',
+    athleteId: DEMO_ATHLETE_IDS.jordan,
+    date: '2026-03-15',
+    status: 'full',
+    restriction: '',
+    reason: '',
+    reasonCategory: '',
+    decisionMaker: 'coaching staff',
+    expectedReturn: '',
+  },
+  {
+    id: 'avh-002',
+    athleteId: DEMO_ATHLETE_IDS.jordan,
+    date: '2026-03-18',
+    status: 'limited',
+    restriction: 'No high-intensity running',
+    reason: 'Left knee soreness reported post-session',
+    reasonCategory: 'Injury',
+    decisionMaker: 'physio',
+    expectedReturn: '2026-04-01',
+  },
+  {
+    id: 'avh-003',
+    athleteId: DEMO_ATHLETE_IDS.jordan,
+    date: '2026-03-21',
+    status: 'limited',
+    restriction: 'Light training only — no contact, no sprinting',
+    reason: 'Ongoing left knee — physio assessment confirmed patellar irritation',
+    reasonCategory: 'Injury',
+    decisionMaker: 'physio',
+    expectedReturn: '2026-04-01',
+  },
+  // Elena — hamstring tightness
+  {
+    id: 'avh-004',
+    athleteId: DEMO_ATHLETE_IDS.elena,
+    date: '2026-03-19',
+    status: 'full',
+    restriction: '',
+    reason: '',
+    reasonCategory: '',
+    decisionMaker: 'coaching staff',
+    expectedReturn: '',
+  },
+  {
+    id: 'avh-005',
+    athleteId: DEMO_ATHLETE_IDS.elena,
+    date: '2026-03-20',
+    status: 'limited',
+    restriction: 'No sprinting',
+    reason: 'Mild hamstring tightness — athlete-reported',
+    reasonCategory: 'Injury',
+    decisionMaker: 'athlete reported',
+    expectedReturn: '2026-03-27',
+  },
+  // Amara — overtraining
+  {
+    id: 'avh-006',
+    athleteId: DEMO_ATHLETE_IDS.amara,
+    date: '2026-03-19',
+    status: 'full',
+    restriction: '',
+    reason: '',
+    reasonCategory: '',
+    decisionMaker: 'coaching staff',
+    expectedReturn: '',
+  },
+  {
+    id: 'avh-007',
+    athleteId: DEMO_ATHLETE_IDS.amara,
+    date: '2026-03-20',
+    status: 'limited',
+    restriction: 'Reduced intensity — no conditioning blocks',
+    reason: 'Accumulated load concern flagged by system',
+    reasonCategory: 'Injury',
+    decisionMaker: 'coaching staff',
+    expectedReturn: '2026-03-23',
+  },
+  {
+    id: 'avh-008',
+    athleteId: DEMO_ATHLETE_IDS.amara,
+    date: '2026-03-21',
+    status: 'out',
+    restriction: 'Full rest',
+    reason: 'Fatigue/overtraining — mandatory rest day. Coach decision.',
+    reasonCategory: 'Injury',
+    decisionMaker: 'coaching staff',
+    expectedReturn: '2026-03-26',
+  },
+]
+
+// ---------------------------------------------------------------------------
 // Top-level DEMO_DATA export
 // ---------------------------------------------------------------------------
 export const DEMO_DATA = {
@@ -882,4 +1184,8 @@ export const DEMO_DATA = {
   teamReadiness: DEMO_TEAM_READINESS,
   availabilitySummary: DEMO_AVAILABILITY_SUMMARY,
   recentActivity: DEMO_RECENT_ACTIVITY,
+  sessionPlans: DEMO_SESSION_PLANS,
+  workloadEntries: DEMO_WORKLOAD_ENTRIES,
+  injuryRecords: DEMO_INJURY_RECORDS,
+  availabilityHistory: DEMO_AVAILABILITY_HISTORY,
 }

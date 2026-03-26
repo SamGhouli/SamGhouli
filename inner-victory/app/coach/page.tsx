@@ -1,22 +1,71 @@
 import { createClient } from '@/lib/supabase/server'
 import { TopBar } from '@/components/shared/TopBar'
-import { AIInsightCard } from '@/components/coach/AIInsightCard'
-import { TeamReadinessSummary } from '@/components/coach/TeamReadinessSummary'
 import { AlertStrip } from '@/components/coach/AlertStrip'
 import { UpcomingEvents } from '@/components/coach/UpcomingEvents'
+import { MondayPreviewCard } from '@/components/ai/MondayPreviewCard'
 import { DEMO_DATA } from '@/lib/demo/data'
-import { RefreshCw, Users, AlertTriangle, BookOpen, Calendar, Shield } from 'lucide-react'
+import { BookOpen, ArrowRight } from 'lucide-react'
 import type { Alert, TeamEvent } from '@/types/database'
 
 interface PageProps {
   searchParams: { demo?: string }
 }
 
-function formatDate(d: Date) {
-  const dd = String(d.getDate()).padStart(2, '0')
-  const mm = String(d.getMonth() + 1).padStart(2, '0')
-  const yyyy = d.getFullYear()
-  return `${dd}/${mm}/${yyyy}`
+interface FlaggedAthlete {
+  name: string
+  status: 'limited' | 'out'
+  reason: string
+}
+
+function longDate(d: Date) {
+  return d.toLocaleDateString('en-GB', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })
+}
+
+function matchDay(dateStr: string) {
+  return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-GB', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  })
+}
+
+// Simple server-renderable pillar row
+function PillarBar({
+  label,
+  value,
+  max = 100,
+  unit = '',
+  color,
+}: {
+  label: string
+  value: number
+  max?: number
+  unit?: string
+  color: string
+}) {
+  const pct = Math.min(100, Math.max(0, (value / max) * 100))
+  return (
+    <div>
+      <div className="mb-1 flex items-center justify-between">
+        <span className="text-[11px] text-text-muted">{label}</span>
+        <span className="text-[11px] font-semibold tabular-nums text-text-primary">
+          {value}
+          {unit}
+        </span>
+      </div>
+      <div className="h-1.5 overflow-hidden rounded-full bg-surface-3">
+        <div
+          className="h-full rounded-full"
+          style={{ width: `${pct}%`, backgroundColor: color }}
+        />
+      </div>
+    </div>
+  )
 }
 
 export default async function CoachDashboard({ searchParams }: PageProps) {
@@ -29,17 +78,20 @@ export default async function CoachDashboard({ searchParams }: PageProps) {
   let trainingLoadAvg = 0
   let availableFull = 0
   let totalAthletes = 0
-  let injuryFlags = 0
+  let limitedCount = 0
+  let outCount = 0
   let academicFlags = 0
-  let nextMatchDate: string | null = null
+  let nextMatch: TeamEvent | null = null
+  let daysUntilNextMatch = 0
   let alerts: Alert[] = []
   let upcomingEvents: TeamEvent[] = []
-  let recentActivity: typeof DEMO_DATA.recentActivity = []
+  let flaggedAthletes: FlaggedAthlete[] = []
+
+  const today = new Date()
 
   if (isDemo) {
     const d = DEMO_DATA
     const scores = d.readinessScores
-
     const avg = (arr: number[]) =>
       arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : 0
 
@@ -52,13 +104,34 @@ export default async function CoachDashboard({ searchParams }: PageProps) {
     trainingLoadAvg = avg(scores.map((s) => Math.round(s.training_load)))
     availableFull = d.availabilitySummary.full
     totalAthletes = d.athletes.length
-    injuryFlags = d.availability.filter((a) => a.status !== 'full').length
+    limitedCount = d.availability.filter((a) => a.status === 'limited').length
+    outCount = d.availability.filter((a) => a.status === 'out').length
     academicFlags = d.academicRecords.filter((r) => r.eligibility_status !== 'ok').length
-    nextMatchDate =
-      d.upcomingEvents.find((e) => e.event_type === 'match')?.event_date ?? null
     alerts = d.alerts.filter((a) => !a.is_read)
     upcomingEvents = d.upcomingEvents
-    recentActivity = d.recentActivity
+    nextMatch = d.upcomingEvents.find((e) => e.event_type === 'match') ?? null
+
+    if (nextMatch) {
+      daysUntilNextMatch = Math.max(
+        0,
+        Math.ceil(
+          (new Date(nextMatch.event_date + 'T00:00:00').getTime() - today.getTime()) /
+            (1000 * 60 * 60 * 24)
+        )
+      )
+    }
+
+    flaggedAthletes = d.availability
+      .filter((a) => a.status !== 'full')
+      .map((a) => {
+        const athlete = d.athletes.find((at) => at.id === a.athlete_id)
+        return {
+          name: athlete?.full_name ?? '',
+          status: a.status as 'limited' | 'out',
+          reason: a.reason ?? '',
+        }
+      })
+      .filter((a) => a.name)
   } else {
     try {
       const supabase = await createClient()
@@ -74,47 +147,40 @@ export default async function CoachDashboard({ searchParams }: PageProps) {
           .single()
 
         const teamId = userData?.team_id
-
         if (teamId) {
-          const today = new Date().toISOString().split('T')[0]
-
-          const [
-            scoresResult,
-            availResult,
-            academicResult,
-            alertsResult,
-            eventsResult,
-          ] = await Promise.all([
-            supabase
-              .from('readiness_scores')
-              .select('physical_score, sleep_score, combined_score, training_load')
-              .eq('team_id', teamId)
-              .eq('date', today),
-            supabase
-              .from('athlete_availability')
-              .select('status')
-              .eq('team_id', teamId)
-              .eq('date', today),
-            supabase
-              .from('academic_records')
-              .select('eligibility_status')
-              .eq('team_id', teamId)
-              .neq('eligibility_status', 'ok'),
-            supabase
-              .from('alerts')
-              .select('*')
-              .eq('team_id', teamId)
-              .eq('is_read', false)
-              .order('created_at', { ascending: false })
-              .limit(5),
-            supabase
-              .from('team_events')
-              .select('*')
-              .eq('team_id', teamId)
-              .gte('event_date', today)
-              .order('event_date', { ascending: true })
-              .limit(5),
-          ])
+          const todayStr = today.toISOString().split('T')[0]
+          const [scoresResult, availResult, academicResult, alertsResult, eventsResult] =
+            await Promise.all([
+              supabase
+                .from('readiness_scores')
+                .select('physical_score, sleep_score, combined_score, training_load')
+                .eq('team_id', teamId)
+                .eq('date', todayStr),
+              supabase
+                .from('athlete_availability')
+                .select('status, reason')
+                .eq('team_id', teamId)
+                .eq('date', todayStr),
+              supabase
+                .from('academic_records')
+                .select('eligibility_status')
+                .eq('team_id', teamId)
+                .neq('eligibility_status', 'ok'),
+              supabase
+                .from('alerts')
+                .select('*')
+                .eq('team_id', teamId)
+                .eq('is_read', false)
+                .order('created_at', { ascending: false })
+                .limit(5),
+              supabase
+                .from('team_events')
+                .select('*')
+                .eq('team_id', teamId)
+                .gte('event_date', todayStr)
+                .order('event_date', { ascending: true })
+                .limit(5),
+            ])
 
           const scores = scoresResult.data ?? []
           const availability = availResult.data ?? []
@@ -127,207 +193,240 @@ export default async function CoachDashboard({ searchParams }: PageProps) {
           trainingLoadAvg = avg(scores.map((s) => Math.round(s.training_load ?? 0)))
           totalAthletes = scores.length
           availableFull = availability.filter((a) => a.status === 'full').length
-          injuryFlags = availability.filter((a) => a.status !== 'full').length
+          limitedCount = availability.filter((a) => a.status === 'limited').length
+          outCount = availability.filter((a) => a.status === 'out').length
           academicFlags = (academicResult.data ?? []).length
           alerts = (alertsResult.data ?? []) as Alert[]
           upcomingEvents = (eventsResult.data ?? []) as TeamEvent[]
-          nextMatchDate =
-            upcomingEvents.find((e) => e.event_type === 'match')?.event_date ?? null
+          nextMatch = upcomingEvents.find((e) => e.event_type === 'match') ?? null
+          if (nextMatch) {
+            daysUntilNextMatch = Math.max(
+              0,
+              Math.ceil(
+                (new Date(nextMatch.event_date + 'T00:00:00').getTime() - today.getTime()) /
+                  (1000 * 60 * 60 * 24)
+              )
+            )
+          }
         }
       }
     } catch {
-      // Silently fall through to zeros
+      // silently fall through
     }
   }
 
-  const today = new Date()
-  const daysUntilNextMatch = nextMatchDate
-    ? Math.max(
-        0,
-        Math.ceil(
-          (new Date(nextMatchDate).getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
-        )
-      )
-    : 0
-
-  const aiContext = {
-    teamReadiness,
-    physicalScore: physicalAvg,
-    mentalAggregateScore: mentalAggregate,
-    sleepScore: sleepAvg,
-    trainingLoad: trainingLoadAvg,
-    activeAlerts: alerts.map((a) => ({
-      alert_type: a.alert_type,
-      severity: a.severity,
-      message: a.message,
-    })),
-    daysUntilNextMatch,
-    recentActivity: recentActivity.map((r) => ({
-      type: r.type,
-      description: r.description,
-    })),
-  }
-
-  const kpis = [
-    {
-      label: 'Team Readiness',
-      value: teamReadiness,
-      suffix: '',
-      accent: 'text-lime',
-      bg: 'bg-lime/10',
-      icon: Shield,
-      sub: 'Combined score',
-    },
-    {
-      label: 'Available Athletes',
-      value: availableFull,
-      suffix: `/ ${totalAthletes}`,
-      accent: 'text-green',
-      bg: 'bg-green/10',
-      icon: Users,
-      sub: 'Full availability',
-    },
-    {
-      label: 'Injury Flags',
-      value: injuryFlags,
-      suffix: '',
-      accent: 'text-amber',
-      bg: 'bg-amber/10',
-      icon: AlertTriangle,
-      sub: 'Limited or out',
-    },
-    {
-      label: 'Academic Flags',
-      value: academicFlags,
-      suffix: '',
-      accent: 'text-violet',
-      bg: 'bg-violet/10',
-      icon: BookOpen,
-      sub: 'Under review',
-    },
-    {
-      label: 'Next Match',
-      value: daysUntilNextMatch,
-      suffix: daysUntilNextMatch === 1 ? ' day' : ' days',
-      accent: 'text-rose',
-      bg: 'bg-rose/10',
-      icon: Calendar,
-      sub: nextMatchDate
-        ? new Date(nextMatchDate).toLocaleDateString('en-GB', {
-            day: 'numeric',
-            month: 'short',
-          })
-        : 'None scheduled',
-    },
-  ]
+  const matchOpponent = nextMatch?.title.replace(/^.*vs\.\s*/i, '').replace(/^.*vs\s*/i, '') ?? ''
+  const matchCountdownLabel =
+    daysUntilNextMatch === 0
+      ? 'Today'
+      : daysUntilNextMatch === 1
+      ? 'Tomorrow'
+      : `In ${daysUntilNextMatch} days`
+  const matchPrepHref = isDemo ? '/coach/match-prep?demo=true' : '/coach/match-prep'
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       <TopBar
-        title="Command Centre"
-        subtitle={formatDate(today)}
-        actions={
-          <a
-            href={`/coach${isDemo ? '?demo=true' : ''}`}
-            className="flex h-8 items-center gap-1.5 rounded-lg border border-border-1 px-3 text-xs text-text-muted transition-colors hover:bg-surface-2 hover:text-text-primary"
-          >
-            <RefreshCw className="h-3 w-3" />
-            Refresh
-          </a>
-        }
+        title="McMaster Marauders"
+        subtitle={longDate(today)}
         alertCount={alerts.length}
       />
 
-      <div className="flex-1 overflow-y-auto p-6 space-y-6">
-        {/* KPI Cards */}
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
-          {kpis.map((kpi) => {
-            const Icon = kpi.icon
-            return (
-              <div
-                key={kpi.label}
-                className="rounded-xl border border-border-1 bg-surface-2 p-5"
-              >
-                <div className="mb-3 flex items-center gap-2">
-                  <div className={`flex h-7 w-7 items-center justify-center rounded-lg ${kpi.bg}`}>
-                    <Icon className={`h-4 w-4 ${kpi.accent}`} />
-                  </div>
-                  <span className="text-xs text-text-muted">{kpi.label}</span>
-                </div>
-                <div className={`text-3xl font-bold tabular-nums ${kpi.accent}`}>
-                  {kpi.value}
-                  {kpi.suffix && (
-                    <span className="text-base font-normal text-text-muted">{kpi.suffix}</span>
-                  )}
-                </div>
-                <div className="mt-1 text-[10px] text-text-muted">{kpi.sub}</div>
+      <div className="flex-1 overflow-y-auto p-6 space-y-5">
+
+        {/* ── Monday Morning Preview (first training day of week) ── */}
+        {isDemo && <MondayPreviewCard />}
+
+        {/* ── Match banner ─────────────────────────────────────────── */}
+        {nextMatch && daysUntilNextMatch <= 7 && (
+          <a
+            href={matchPrepHref}
+            className="group relative flex items-end justify-between overflow-hidden rounded-2xl border border-lime/20 bg-[#0b1a0e] p-6 transition-colors hover:border-lime/35"
+          >
+            {/* Accent line */}
+            <div className="absolute left-0 top-0 h-px w-3/4 bg-gradient-to-r from-lime/80 to-transparent" />
+            {/* Pitch stripe texture */}
+            <div
+              className="pointer-events-none absolute inset-0 opacity-[0.04]"
+              style={{
+                backgroundImage:
+                  'repeating-linear-gradient(0deg, #3DB87F 0px, transparent 1px, transparent 48px)',
+              }}
+            />
+
+            <div className="relative z-10">
+              <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-lime/60">
+                {matchCountdownLabel}
+                {nextMatch.start_time && ` · ${nextMatch.start_time.slice(0, 5)}`}
+              </p>
+              <h2 className="font-display text-3xl font-black italic leading-tight text-white">
+                {matchOpponent}
+              </h2>
+              <p className="mt-1.5 text-sm text-text-muted">
+                {matchDay(nextMatch.event_date)}
+                {nextMatch.location ? ` · ${nextMatch.location}` : ''}
+              </p>
+              <div className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold text-lime/70 transition-colors group-hover:text-lime">
+                Match Prep <ArrowRight className="h-3.5 w-3.5" />
               </div>
-            )
-          })}
-        </div>
+            </div>
 
-        {/* AI Insight */}
-        <AIInsightCard context={aiContext} />
+            <div className="relative z-10 ml-8 shrink-0 text-right">
+              <div className="font-display text-[6rem] font-black italic leading-none text-lime/90">
+                {daysUntilNextMatch}
+              </div>
+              <p className="text-xs text-text-muted">
+                {daysUntilNextMatch === 1 ? 'day' : 'days'}
+              </p>
+            </div>
+          </a>
+        )}
 
-        {/* Two-column grid */}
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          {/* Left: Team Readiness Summary */}
-          <TeamReadinessSummary
-            physicalScore={physicalAvg}
-            mentalScore={mentalAggregate}
-            sleepScore={sleepAvg}
-            trainingLoad={trainingLoadAvg}
-          />
+        {/* ── Squad + Readiness ────────────────────────────────────── */}
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_220px]">
 
-          {/* Right: Alerts + Upcoming Events stacked */}
-          <div className="flex flex-col gap-4">
-            <AlertStrip alerts={alerts} />
-            <UpcomingEvents events={upcomingEvents} />
+          {/* Squad status */}
+          <div className="rounded-xl border border-border-1 bg-surface-2 p-5">
+            <div className="mb-3 flex items-baseline justify-between">
+              <h2 className="text-[10px] font-bold uppercase tracking-widest text-text-muted">
+                Squad Today
+              </h2>
+              <span className="text-xs text-text-muted">{totalAthletes} athletes</span>
+            </div>
+
+            {/* Availability strip */}
+            {totalAthletes > 0 && (
+              <div className="mb-3 flex h-1.5 gap-px overflow-hidden rounded-full bg-surface-3">
+                {availableFull > 0 && (
+                  <div
+                    className="bg-lime"
+                    style={{ flex: availableFull }}
+                  />
+                )}
+                {limitedCount > 0 && (
+                  <div
+                    className="bg-amber"
+                    style={{ flex: limitedCount }}
+                  />
+                )}
+                {outCount > 0 && (
+                  <div
+                    className="bg-rose"
+                    style={{ flex: outCount }}
+                  />
+                )}
+              </div>
+            )}
+
+            <div className="mb-4 flex items-center gap-5 text-xs">
+              {availableFull > 0 && (
+                <span>
+                  <span className="font-bold text-lime">{availableFull}</span>{' '}
+                  <span className="text-text-muted">full</span>
+                </span>
+              )}
+              {limitedCount > 0 && (
+                <span>
+                  <span className="font-bold text-amber">{limitedCount}</span>{' '}
+                  <span className="text-text-muted">limited</span>
+                </span>
+              )}
+              {outCount > 0 && (
+                <span>
+                  <span className="font-bold text-rose">{outCount}</span>{' '}
+                  <span className="text-text-muted">out</span>
+                </span>
+              )}
+            </div>
+
+            {/* Named flags */}
+            {flaggedAthletes.length > 0 ? (
+              <div className="space-y-2.5 border-t border-border-1 pt-3">
+                {flaggedAthletes.map((a) => (
+                  <div key={a.name} className="flex items-start gap-3">
+                    <span
+                      className={`mt-0.5 text-xs leading-none font-bold ${
+                        a.status === 'out' ? 'text-rose' : 'text-amber'
+                      }`}
+                    >
+                      {a.status === 'out' ? '✕' : '▲'}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <span className="text-xs font-medium text-text-primary">{a.name}</span>
+                      {a.reason && (
+                        <span className="ml-2 text-[11px] text-text-muted">— {a.reason}</span>
+                      )}
+                    </div>
+                    <span
+                      className={`shrink-0 text-[10px] font-semibold capitalize ${
+                        a.status === 'out' ? 'text-rose' : 'text-amber'
+                      }`}
+                    >
+                      {a.status}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              totalAthletes > 0 && (
+                <p className="text-xs text-text-muted border-t border-border-1 pt-3">
+                  Full squad available.
+                </p>
+              )
+            )}
+          </div>
+
+          {/* Readiness */}
+          <div className="rounded-xl border border-border-1 bg-surface-2 p-5">
+            <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-text-muted">
+              Readiness
+            </p>
+            <div className="mb-5 flex items-end gap-1.5">
+              <span className="font-display text-[3.75rem] font-black italic leading-none text-lime">
+                {teamReadiness || '—'}
+              </span>
+              {teamReadiness > 0 && (
+                <span className="mb-1.5 text-xs text-text-muted">/ 100</span>
+              )}
+            </div>
+            <div className="space-y-3">
+              <PillarBar label="Physical" value={physicalAvg} color="#3DB87F" />
+              <PillarBar label="Sleep" value={sleepAvg} color="#a78bfa" />
+              <PillarBar label="Mental" value={mentalAggregate} color="#60a5fa" />
+              <PillarBar
+                label="Training Load"
+                value={trainingLoadAvg}
+                max={21}
+                unit=" AU"
+                color="#fbbf24"
+              />
+            </div>
           </div>
         </div>
 
-        {/* Recent Activity */}
-        <div className="rounded-xl border border-border-1 bg-surface-2 p-5">
-          <h2 className="mb-4 text-sm font-semibold text-text-primary">Recent Activity</h2>
-          {recentActivity.length === 0 ? (
-            <p className="text-xs text-text-muted">No recent activity.</p>
-          ) : (
-            <div className="space-y-3">
-              {recentActivity.slice(0, 3).map((act) => (
-                <div key={act.id} className="flex items-start gap-3">
-                  <div
-                    className={`mt-0.5 h-2 w-2 shrink-0 rounded-full ${
-                      act.severity === 'critical'
-                        ? 'bg-rose'
-                        : act.severity === 'warning'
-                        ? 'bg-amber'
-                        : 'bg-sky'
-                    }`}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="text-xs font-medium text-text-primary">{act.title}</div>
-                    <div className="text-[10px] text-text-muted">{act.description}</div>
-                  </div>
-                  <span className="shrink-0 text-[10px] text-text-faint">
-                    {new Date(act.timestamp).toLocaleTimeString('en-GB', {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        {/* ── Academic flags ───────────────────────────────────────── */}
+        {academicFlags > 0 && (
+          <div className="flex items-center gap-3 rounded-lg border border-violet/20 bg-violet/5 px-4 py-3">
+            <BookOpen className="h-4 w-4 shrink-0 text-violet" />
+            <p className="text-xs text-text-primary">
+              <span className="font-semibold text-violet">{academicFlags}</span> athlete
+              {academicFlags > 1 ? 's' : ''} under academic review — confirm eligibility before
+              next squad selection.
+            </p>
+          </div>
+        )}
 
-        {/* Privacy Banner */}
-        <div className="rounded-xl border border-border-1 bg-surface-1 px-5 py-4">
-          <p className="text-center text-[11px] text-text-muted">
-            <span className="font-semibold text-text-primary">Privacy Notice:</span>{' '}
-            Mental health data is aggregated and anonymised. Individual athlete wellness inputs are
-            never visible to coaching staff.
-          </p>
-        </div>
+        {/* ── Alerts ───────────────────────────────────────────────── */}
+        {alerts.length > 0 && <AlertStrip alerts={alerts} />}
+
+        {/* ── Upcoming events ──────────────────────────────────────── */}
+        <UpcomingEvents events={upcomingEvents} />
+
+        {/* ── Privacy ──────────────────────────────────────────────── */}
+        <p className="text-center text-[11px] text-text-faint">
+          Mental health data is aggregated and anonymised. Individual athlete wellness inputs are
+          never visible to coaching staff.
+        </p>
       </div>
     </div>
   )

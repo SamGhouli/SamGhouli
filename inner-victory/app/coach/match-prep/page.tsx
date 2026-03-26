@@ -6,6 +6,7 @@ import { TopBar } from '@/components/shared/TopBar'
 import { DEMO_DATA } from '@/lib/demo/data'
 import { FormationPitch, PresentationOverlay } from '@/components/coach/FormationPitch'
 import type { FormationKey, MatchBriefData } from '@/components/coach/FormationPitch'
+import { PreMatchBriefCard } from '@/components/ai/PreMatchBriefCard'
 import {
   Target,
   Shield,
@@ -568,6 +569,22 @@ export default function MatchPrepPage() {
           <Section icon={BookOpen} title="Prep Checklist" defaultOpen={false}>
             <PrepChecklist />
           </Section>
+
+          {/* AI Pre-Match Brief */}
+          {isDemo && match && (() => {
+            const today = new Date()
+            const daysUntilMatch = Math.max(0, Math.ceil(
+              (new Date(match.event_date + 'T00:00:00').getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+            ))
+            const opponent = match.title.replace(/^.*vs\.\s*/i, '').replace(/^.*vs\s*/i, '')
+            return (
+              <PreMatchBriefCard
+                opponent={opponent}
+                matchDate={match.event_date}
+                daysUntilMatch={daysUntilMatch}
+              />
+            )
+          })()}
 
         </div>
       </div>

@@ -207,3 +207,108 @@ export interface TeamMentalAggregate {
   total_athletes: number
   created_at: string
 }
+
+// ---------------------------------------------------------------------------
+// Session Planner
+// ---------------------------------------------------------------------------
+
+export type SessionBlockType =
+  | 'warm-up'
+  | 'technical'
+  | 'tactical'
+  | 'physical'
+  | 'set-pieces'
+  | 'cool-down'
+
+export type SessionType =
+  | 'pre-match'
+  | 'post-match'
+  | 'recovery'
+  | 'high-intensity'
+  | 'technical'
+  | 'tactical'
+  | 'strength'
+  | 'friendly'
+
+export type BlockIntensity = 'low' | 'medium' | 'high'
+
+export interface SessionBlockV2 {
+  id: string
+  type: SessionBlockType
+  name: string
+  durationMins: number
+  intensity: BlockIntensity
+  drills: string[]
+  coachNotes: string
+}
+
+export interface SessionPlanV2 {
+  id: string
+  title: string
+  date: string
+  startTime: string
+  venue: string
+  sessionType: SessionType
+  blocks: SessionBlockV2[]
+  rpe?: number
+  coachReflection?: string
+  status: 'planned' | 'live' | 'completed'
+}
+
+export interface Incident {
+  id: string
+  timestamp: string
+  description: string
+  athleteId?: string
+  confirmed: boolean
+}
+
+// ---------------------------------------------------------------------------
+// Workload & Availability
+// ---------------------------------------------------------------------------
+
+export interface WorkloadEntry {
+  id: string
+  athleteId: string
+  date: string
+  durationMins: number
+  rpe: number
+  load: number
+  sessionType: string
+}
+
+// ---------------------------------------------------------------------------
+// Injury records
+// ---------------------------------------------------------------------------
+
+export type InjuryType = 'soft-tissue' | 'bone' | 'overuse' | 'illness' | 'contact' | 'other'
+export type InjuryMechanism = 'training' | 'match' | 'unknown'
+export type InjurySeverity = 1 | 2 | 3
+export type RTPStage = 0 | 1 | 2 | 3
+
+export interface InjuryRecord {
+  id: string
+  athleteId: string
+  injuryType: InjuryType
+  bodyLocation: string
+  severity: InjurySeverity
+  dateOfOnset: string
+  mechanism: InjuryMechanism
+  description: string
+  expectedReturn: string
+  treatmentPlan: string
+  rtpStage: RTPStage
+  stageEnteredAt: Partial<Record<number, string>>
+}
+
+export interface AvailabilityHistoryEntry {
+  id: string
+  athleteId: string
+  date: string
+  status: AvailabilityStatus
+  restriction: string
+  reason: string
+  reasonCategory: string
+  decisionMaker: string
+  expectedReturn: string
+}
