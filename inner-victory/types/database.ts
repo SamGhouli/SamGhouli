@@ -312,3 +312,96 @@ export interface AvailabilityHistoryEntry {
   decisionMaker: string
   expectedReturn: string
 }
+
+// ---------------------------------------------------------------------------
+// Players  (view: users WHERE role = 'athlete')
+// ---------------------------------------------------------------------------
+
+export interface Player {
+  id: string
+  auth_id?: string
+  team_id: string
+  full_name: string
+  email: string
+  jersey_number?: number
+  position?: string
+  avatar_url?: string
+  date_of_birth?: string
+  year_of_study?: number
+  wearable_source?: string
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+// ---------------------------------------------------------------------------
+// Drills
+// ---------------------------------------------------------------------------
+
+export type DrillCategory =
+  | 'technical'
+  | 'tactical'
+  | 'physical'
+  | 'set-piece'
+  | 'warm-up'
+  | 'cool-down'
+
+export type DrillIntensity = 'low' | 'medium' | 'high'
+
+export interface Drill {
+  id: string
+  team_id?: string          // null = global/platform drill
+  created_by?: string
+  name: string
+  description?: string
+  category: DrillCategory
+  intensity: DrillIntensity
+  duration_mins?: number
+  players_required?: number
+  equipment?: string[]
+  tags?: string[]
+  video_url?: string
+  thumbnail_url?: string
+  is_archived: boolean
+  created_at: string
+  updated_at: string
+}
+
+// ---------------------------------------------------------------------------
+// Load Scores
+// ---------------------------------------------------------------------------
+
+export interface LoadScore {
+  id: string
+  athlete_id: string
+  team_id: string
+  session_id?: string
+  date: string
+  // Session metrics
+  duration_mins?: number
+  rpe?: number              // 1–10
+  session_load?: number     // rpe × duration_mins
+  // Rolling windows
+  acute_load?: number       // 7-day average
+  chronic_load?: number     // 28-day average
+  acwr?: number             // acute:chronic workload ratio
+  // Monotony & strain
+  daily_load?: number
+  weekly_load?: number
+  training_monotony?: number
+  training_strain?: number
+  source?: string
+  notes?: string
+  created_at: string
+}
+
+// ---------------------------------------------------------------------------
+// Table/view name map for type-safe Supabase queries
+// ---------------------------------------------------------------------------
+//
+//  teams         → Team
+//  players       → Player   (view: users WHERE role='athlete')
+//  training_sessions → TrainingSession  (use as "sessions")
+//  drills        → Drill
+//  training_attendance → (session_id, athlete_id, attended, rpe_actual)
+//  load_scores   → LoadScore

@@ -721,3 +721,127 @@ CREATE POLICY "alerts_staff_write"
 CREATE POLICY "alerts_staff_update"
   ON alerts FOR UPDATE
   USING (team_id = auth_user_team_id() AND is_staff_or_above());
+
+-- ============================================================
+-- DRILLS
+-- ============================================================
+
+CREATE TABLE drills (
+  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  team_id         UUID REFERENCES teams(id) ON DELETE CASCADE,  -- NULL = global/platform drill
+  created_by      UUID REFERENCES users(id),
+  name            TEXT NOT NULL,
+  description     TEXT,
+  category        TEXT NOT NULL DEFAULT 'technical',  -- 'technical', 'tactical', 'physical', 'set-piece', 'warm-up', 'cool-down'
+  intensity       TEXT NOT NULL DEFAULT 'medium'      CHECK (intensity IN ('low', 'medium', 'high')),
+  duration_mins   INT,
+  players_required INT,
+  equipment       TEXT[],
+  tags            TEXT[],
+  video_url       TEXT,
+  thumbnail_url   TEXT,
+  is_archived     BOOLEAN DEFAULT FALSE,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_drills_team ON drills(team_id);
+CREATE INDEX idx_drills_category ON drills(category);
+
+CREATE TRIGGER trg_drills_updated_at
+  BEFORE UPDATE ON drills
+  FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
+
+ALTER TABLE drills ENABLE ROW LEVEL SECURITY;
+
+-- All team members can read drills for their team or global drills
+CREATE POLICY "drills_team_read"
+  ON drills FOR SELECT
+  USING (team_id = auth_user_team_id() OR team_id IS NULL);
+
+-- Staff can create/update drills
+CREATE POLICY "drills_staff_write"
+  ON drills FOR INSERT
+  WITH CHECK (team_id = auth_user_team_id() AND is_staff_or_above());
+
+CREATE POLICY "drills_staff_update"
+  ON drills FOR UPDATE
+  USING (team_id = auth_user_team_id() AND is_staff_or_above());
+
+-- ============================================================
+-- LOAD SCORES  (daily training load per athlete)
+-- ============================================================
+
+CREATE TABLE load_scores (
+  id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  athlete_id        UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  team_id           UUID NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+  session_id        UUID REFERENCES training_sessions(id) ON DELETE SET NULL,
+  date              DATE NOT NULL,
+  -- Session metrics
+  duration_mins     INT,
+  rpe               INT CHECK (rpe BETWEEN 1 AND 10),      -- rate of perceived exertion
+  session_load      NUMERIC(8,2),                           -- rpe × duration_mins
+  -- Cumulative load windows
+  acute_load        NUMERIC(8,2),                           -- 7-day rolling average
+  chronic_load      NUMERIC(8,2),                           -- 28-day rolling average
+  acwr              NUMERIC(5,3),                           -- acute:chronic workload ratio
+  -- Monotony & strain
+  daily_load        NUMERIC(8,2),
+  weekly_load       NUMERIC(8,2),
+  training_monotony NUMERIC(5,3),
+  training_strain   NUMERIC(8,2),
+  -- Source
+  source            TEXT DEFAULT 'manual',                  -- 'manual', 'wearable', 'calculated'
+  notes             TEXT,
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (athlete_id, date, session_id)
+);
+
+CREATE INDEX idx_load_scores_athlete_date ON load_scores(athlete_id, date DESC);
+CREATE INDEX idx_load_scores_team_date ON load_scores(team_id, date DESC);
+
+ALTER TABLE load_scores ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "load_scores_athlete_read_own"
+  ON load_scores FOR SELECT
+  USING (athlete_id = auth_user_id());
+
+CREATE POLICY "load_scores_staff_read_team"
+  ON load_scores FOR SELECT
+  USING (team_id = auth_user_team_id() AND is_staff_or_above());
+
+CREATE POLICY "load_scores_athlete_insert"
+  ON load_scores FOR INSERT
+  WITH CHECK (athlete_id = auth_user_id());
+
+CREATE POLICY "load_scores_staff_write"
+  ON load_scores FOR INSERT
+  WITH CHECK (team_id = auth_user_team_id() AND is_staff_or_above());
+
+CREATE POLICY "load_scores_staff_update"
+  ON load_scores FOR UPDATE
+  USING (team_id = auth_user_team_id() AND is_staff_or_above());
+
+-- ============================================================
+-- PLAYERS VIEW  (athletes only — alias for users WHERE role='athlete')
+-- ============================================================
+
+CREATE OR REPLACE VIEW players AS
+  SELECT
+    u.id,
+    u.auth_id,
+    u.team_id,
+    u.full_name,
+    u.email,
+    u.jersey_number,
+    u.position,
+    u.avatar_url,
+    u.date_of_birth,
+    u.year_of_study,
+    u.wearable_source,
+    u.is_active,
+    u.created_at,
+    u.updated_at
+  FROM users u
+  WHERE u.role = 'athlete';
