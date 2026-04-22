@@ -1,6 +1,6 @@
 'use client'
 
-import { Plus, Save, PlayCircle, ArrowLeft } from 'lucide-react'
+import { Save, PlayCircle, ArrowLeft } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { BlockCard } from './BlockCard'
 import { BlockEditor } from './BlockEditor'
@@ -40,8 +40,6 @@ export function SessionBuilder({ planner, daysToMatch }: SessionBuilderProps) {
   const { draft, selectedBlockId, blockStartTimes, totalDraftMins, actions } = planner
 
   if (!draft) return null
-
-  const selectedBlock = draft.blocks.find((b) => b.id === selectedBlockId) ?? null
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">

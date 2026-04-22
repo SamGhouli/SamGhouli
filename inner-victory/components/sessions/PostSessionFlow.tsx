@@ -1,6 +1,5 @@
 'use client'
 
-import { useEffect } from 'react'
 import { ChevronRight, ChevronLeft, CheckCircle2, Loader2, AlertTriangle, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { useSessionPlanner } from '@/hooks/useSessionPlanner'
