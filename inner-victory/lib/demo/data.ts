@@ -40,12 +40,16 @@ export const DEMO_COACH_ID = 'demo-coach-001'
 // ---------------------------------------------------------------------------
 export const DEMO_TEAM: Team = {
   id: DEMO_TEAM_ID,
+  coach_id: 'demo-coach-id',
   name: 'McMaster Marauders',
+  age_group: 'Senior',
   sport: 'Soccer',
   league: 'OUA',
   institution: 'McMaster University',
   season_label: '2025–26',
+  timezone: 'America/Toronto',
   created_at: '2025-08-01T00:00:00Z',
+  updated_at: '2025-08-01T00:00:00Z',
 }
 
 // ---------------------------------------------------------------------------

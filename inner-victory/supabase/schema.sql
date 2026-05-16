@@ -28,16 +28,18 @@ CREATE TYPE prospect_status AS ENUM ('identified', 'contacted', 'evaluating', 'o
 -- ============================================================
 
 CREATE TABLE teams (
-  id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  coach_id      UUID NOT NULL REFERENCES auth.users(id),
   name          TEXT NOT NULL,
-  sport         TEXT NOT NULL,
+  age_group     TEXT,                    -- "U17", "U SPORTS Men", etc.
+  sport         TEXT,
   league        TEXT,
   division      TEXT,
   institution   TEXT,
   logo_url      TEXT,
   season_label  TEXT,
   timezone      TEXT NOT NULL DEFAULT 'America/Toronto',
-  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  created_at    TIMESTAMPTZ DEFAULT NOW(),
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -726,47 +728,47 @@ CREATE POLICY "alerts_staff_update"
 -- DRILLS
 -- ============================================================
 
+-- Drills: coach-owned, team-owned, or seed (public read-only)
 CREATE TABLE drills (
-  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  team_id         UUID REFERENCES teams(id) ON DELETE CASCADE,  -- NULL = global/platform drill
-  created_by      UUID REFERENCES users(id),
-  name            TEXT NOT NULL,
-  description     TEXT,
-  category        TEXT NOT NULL DEFAULT 'technical',  -- 'technical', 'tactical', 'physical', 'set-piece', 'warm-up', 'cool-down'
-  intensity       TEXT NOT NULL DEFAULT 'medium'      CHECK (intensity IN ('low', 'medium', 'high')),
-  duration_mins   INT,
-  players_required INT,
-  equipment       TEXT[],
-  tags            TEXT[],
-  video_url       TEXT,
-  thumbnail_url   TEXT,
-  is_archived     BOOLEAN DEFAULT FALSE,
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  owner_coach_id   UUID REFERENCES auth.users(id),
+  owner_team_id    UUID REFERENCES teams(id) ON DELETE CASCADE,
+  is_seed          BOOLEAN DEFAULT FALSE,
+  name             TEXT NOT NULL,
+  description      TEXT,
+  duration_minutes INT,
+  intensity        TEXT CHECK (intensity IN ('recovery', 'low', 'moderate', 'high', 'max')),
+  objectives       TEXT[] DEFAULT '{}',
+  age_groups       TEXT[] DEFAULT '{}',
+  created_at       TIMESTAMPTZ DEFAULT NOW(),
+  CHECK (
+    (owner_coach_id IS NOT NULL AND owner_team_id IS NULL AND is_seed = FALSE) OR
+    (owner_coach_id IS NULL AND owner_team_id IS NOT NULL AND is_seed = FALSE) OR
+    (owner_coach_id IS NULL AND owner_team_id IS NULL AND is_seed = TRUE)
+  )
 );
-
-CREATE INDEX idx_drills_team ON drills(team_id);
-CREATE INDEX idx_drills_category ON drills(category);
-
-CREATE TRIGGER trg_drills_updated_at
-  BEFORE UPDATE ON drills
-  FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
 
 ALTER TABLE drills ENABLE ROW LEVEL SECURITY;
 
--- All team members can read drills for their team or global drills
-CREATE POLICY "drills_team_read"
+CREATE POLICY "drills_read"
   ON drills FOR SELECT
-  USING (team_id = auth_user_team_id() OR team_id IS NULL);
+  USING (
+    is_seed = TRUE OR
+    owner_coach_id = auth.uid() OR
+    owner_team_id IN (SELECT id FROM teams WHERE coach_id = auth.uid())
+  );
 
--- Staff can create/update drills
-CREATE POLICY "drills_staff_write"
+CREATE POLICY "drills_coach_insert"
   ON drills FOR INSERT
-  WITH CHECK (team_id = auth_user_team_id() AND is_staff_or_above());
+  WITH CHECK (owner_coach_id = auth.uid() OR owner_team_id IN (SELECT id FROM teams WHERE coach_id = auth.uid()));
 
-CREATE POLICY "drills_staff_update"
+CREATE POLICY "drills_coach_update"
   ON drills FOR UPDATE
-  USING (team_id = auth_user_team_id() AND is_staff_or_above());
+  USING (owner_coach_id = auth.uid() OR owner_team_id IN (SELECT id FROM teams WHERE coach_id = auth.uid()));
+
+CREATE POLICY "drills_coach_delete"
+  ON drills FOR DELETE
+  USING (owner_coach_id = auth.uid() OR owner_team_id IN (SELECT id FROM teams WHERE coach_id = auth.uid()));
 
 -- ============================================================
 -- LOAD SCORES  (daily training load per athlete)
@@ -824,24 +826,164 @@ CREATE POLICY "load_scores_staff_update"
   USING (team_id = auth_user_team_id() AND is_staff_or_above());
 
 -- ============================================================
--- PLAYERS VIEW  (athletes only — alias for users WHERE role='athlete')
+-- PLAYERS
 -- ============================================================
 
-CREATE OR REPLACE VIEW players AS
-  SELECT
-    u.id,
-    u.auth_id,
-    u.team_id,
-    u.full_name,
-    u.email,
-    u.jersey_number,
-    u.position,
-    u.avatar_url,
-    u.date_of_birth,
-    u.year_of_study,
-    u.wearable_source,
-    u.is_active,
-    u.created_at,
-    u.updated_at
-  FROM users u
-  WHERE u.role = 'athlete';
+CREATE TABLE players (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  team_id           UUID NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+  first_name        TEXT NOT NULL,
+  last_name         TEXT NOT NULL,
+  position          TEXT,
+  jersey_number     INT,
+  date_of_birth     DATE,
+  status            TEXT NOT NULL DEFAULT 'current'
+    CHECK (status IN ('trial', 'target', 'committed', 'current', 'alumni')),
+  source            TEXT,
+  last_contact_date DATE,
+  created_at        TIMESTAMPTZ DEFAULT NOW(),
+  updated_at        TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_players_team_status ON players(team_id, status);
+
+ALTER TABLE players ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "players_coach_all"
+  ON players FOR ALL
+  USING (team_id IN (SELECT id FROM teams WHERE coach_id = auth.uid()));
+
+-- ============================================================
+-- PLAYER TOUCHPOINTS
+-- ============================================================
+
+CREATE TABLE player_touchpoints (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  player_id   UUID NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  occurred_on DATE NOT NULL,
+  note        TEXT NOT NULL,
+  kind        TEXT DEFAULT 'observation'
+    CHECK (kind IN ('observation', 'contact', 'trial_session', 'other')),
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_touchpoints_player_date ON player_touchpoints(player_id, occurred_on DESC);
+
+ALTER TABLE player_touchpoints ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "touchpoints_coach_all"
+  ON player_touchpoints FOR ALL
+  USING (
+    player_id IN (
+      SELECT p.id FROM players p
+      JOIN teams t ON t.id = p.team_id
+      WHERE t.coach_id = auth.uid()
+    )
+  );
+
+-- ============================================================
+-- PLAYER AVAILABILITY
+-- ============================================================
+
+CREATE TABLE player_availability (
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  player_id      UUID NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  state          TEXT NOT NULL
+    CHECK (state IN ('fit', 'monitor', 'limited', 'out')),
+  reason         TEXT,
+  effective_from DATE NOT NULL,
+  effective_to   DATE,
+  created_at     TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_availability_player_current
+  ON player_availability(player_id) WHERE effective_to IS NULL;
+
+ALTER TABLE player_availability ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "availability_coach_all"
+  ON player_availability FOR ALL
+  USING (
+    player_id IN (
+      SELECT p.id FROM players p
+      JOIN teams t ON t.id = p.team_id
+      WHERE t.coach_id = auth.uid()
+    )
+  );
+
+-- ============================================================
+-- SESSIONS
+-- ============================================================
+
+CREATE TABLE sessions (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  team_id         UUID NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+  scheduled_for   TIMESTAMPTZ NOT NULL,
+  title           TEXT,
+  tactical_focus  TEXT,
+  notes           TEXT,
+  status          TEXT DEFAULT 'planned'
+    CHECK (status IN ('planned', 'completed', 'cancelled')),
+  created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_sessions_team_date ON sessions(team_id, scheduled_for DESC);
+
+ALTER TABLE sessions ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "sessions_coach_all"
+  ON sessions FOR ALL
+  USING (team_id IN (SELECT id FROM teams WHERE coach_id = auth.uid()));
+
+-- ============================================================
+-- SESSION BLOCKS
+-- ============================================================
+
+CREATE TABLE session_blocks (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  session_id       UUID NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+  drill_id         UUID REFERENCES drills(id),
+  order_index      INT NOT NULL,
+  duration_minutes INT,
+  intensity        TEXT CHECK (intensity IN ('recovery', 'low', 'moderate', 'high', 'max')),
+  coach_notes      TEXT,
+  created_at       TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_blocks_session_order ON session_blocks(session_id, order_index);
+
+ALTER TABLE session_blocks ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "blocks_coach_all"
+  ON session_blocks FOR ALL
+  USING (
+    session_id IN (
+      SELECT s.id FROM sessions s
+      JOIN teams t ON t.id = s.team_id
+      WHERE t.coach_id = auth.uid()
+    )
+  );
+
+-- ============================================================
+-- SESSION ATTENDANCE
+-- ============================================================
+
+CREATE TABLE session_attendance (
+  session_id  UUID NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+  player_id   UUID NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  status      TEXT DEFAULT 'attended'
+    CHECK (status IN ('attended', 'partial', 'absent', 'modified')),
+  PRIMARY KEY (session_id, player_id)
+);
+
+ALTER TABLE session_attendance ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "attendance_coach_all"
+  ON session_attendance FOR ALL
+  USING (
+    session_id IN (
+      SELECT s.id FROM sessions s
+      JOIN teams t ON t.id = s.team_id
+      WHERE t.coach_id = auth.uid()
+    )
+  );

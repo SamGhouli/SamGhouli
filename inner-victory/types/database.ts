@@ -13,12 +13,18 @@ export type AlertSeverity = 'critical' | 'warning' | 'info'
 
 export interface Team {
   id: string
+  coach_id: string
   name: string
-  sport: string
-  league: string
-  institution: string
-  season_label: string
+  age_group?: string
+  sport?: string
+  league?: string
+  division?: string
+  institution?: string
+  logo_url?: string
+  season_label?: string
+  timezone: string
   created_at: string
+  updated_at: string
 }
 
 export interface User {
@@ -314,57 +320,119 @@ export interface AvailabilityHistoryEntry {
 }
 
 // ---------------------------------------------------------------------------
-// Players  (view: users WHERE role = 'athlete')
+// Players
 // ---------------------------------------------------------------------------
+
+export type PlayerStatus = 'trial' | 'target' | 'committed' | 'current' | 'alumni'
 
 export interface Player {
   id: string
-  auth_id?: string
   team_id: string
-  full_name: string
-  email: string
-  jersey_number?: number
+  first_name: string
+  last_name: string
   position?: string
-  avatar_url?: string
+  jersey_number?: number
   date_of_birth?: string
-  year_of_study?: number
-  wearable_source?: string
-  is_active: boolean
+  status: PlayerStatus
+  source?: string
+  last_contact_date?: string
   created_at: string
   updated_at: string
+}
+
+// ---------------------------------------------------------------------------
+// Player Touchpoints
+// ---------------------------------------------------------------------------
+
+export type TouchpointKind = 'observation' | 'contact' | 'trial_session' | 'other'
+
+export interface PlayerTouchpoint {
+  id: string
+  player_id: string
+  occurred_on: string
+  note: string
+  kind: TouchpointKind
+  created_at: string
+}
+
+// ---------------------------------------------------------------------------
+// Player Availability
+// ---------------------------------------------------------------------------
+
+export type AvailabilityState = 'fit' | 'monitor' | 'limited' | 'out'
+
+export interface PlayerAvailability {
+  id: string
+  player_id: string
+  state: AvailabilityState
+  reason?: string
+  effective_from: string
+  effective_to?: string       // null = currently in effect
+  created_at: string
 }
 
 // ---------------------------------------------------------------------------
 // Drills
 // ---------------------------------------------------------------------------
 
-export type DrillCategory =
-  | 'technical'
-  | 'tactical'
-  | 'physical'
-  | 'set-piece'
-  | 'warm-up'
-  | 'cool-down'
-
-export type DrillIntensity = 'low' | 'medium' | 'high'
+export type DrillIntensity = 'recovery' | 'low' | 'moderate' | 'high' | 'max'
 
 export interface Drill {
   id: string
-  team_id?: string          // null = global/platform drill
-  created_by?: string
+  owner_coach_id?: string
+  owner_team_id?: string
+  is_seed: boolean
   name: string
   description?: string
-  category: DrillCategory
-  intensity: DrillIntensity
-  duration_mins?: number
-  players_required?: number
-  equipment?: string[]
-  tags?: string[]
-  video_url?: string
-  thumbnail_url?: string
-  is_archived: boolean
+  duration_minutes?: number
+  intensity?: DrillIntensity
+  objectives: string[]
+  age_groups: string[]
   created_at: string
-  updated_at: string
+}
+
+// ---------------------------------------------------------------------------
+// Sessions
+// ---------------------------------------------------------------------------
+
+export type SessionStatus = 'planned' | 'completed' | 'cancelled'
+
+export interface Session {
+  id: string
+  team_id: string
+  scheduled_for: string
+  title?: string
+  tactical_focus?: string
+  notes?: string
+  status: SessionStatus
+  created_at: string
+}
+
+// ---------------------------------------------------------------------------
+// Session Blocks
+// ---------------------------------------------------------------------------
+
+export interface SessionBlock {
+  id: string
+  session_id: string
+  drill_id?: string           // null = ad-hoc block
+  order_index: number
+  duration_minutes?: number
+  intensity?: DrillIntensity
+  coach_notes?: string
+  created_at: string
+}
+
+// ---------------------------------------------------------------------------
+// Session Attendance
+// ---------------------------------------------------------------------------
+
+export type AttendanceStatus = 'attended' | 'partial' | 'absent' | 'modified'
+
+export interface SessionAttendance {
+  session_id: string
+  player_id: string
+  status: AttendanceStatus
 }
 
 // ---------------------------------------------------------------------------
@@ -377,15 +445,12 @@ export interface LoadScore {
   team_id: string
   session_id?: string
   date: string
-  // Session metrics
   duration_mins?: number
-  rpe?: number              // 1–10
-  session_load?: number     // rpe × duration_mins
-  // Rolling windows
-  acute_load?: number       // 7-day average
-  chronic_load?: number     // 28-day average
-  acwr?: number             // acute:chronic workload ratio
-  // Monotony & strain
+  rpe?: number
+  session_load?: number
+  acute_load?: number
+  chronic_load?: number
+  acwr?: number
   daily_load?: number
   weekly_load?: number
   training_monotony?: number
@@ -396,12 +461,15 @@ export interface LoadScore {
 }
 
 // ---------------------------------------------------------------------------
-// Table/view name map for type-safe Supabase queries
+// Table map
 // ---------------------------------------------------------------------------
 //
-//  teams         → Team
-//  players       → Player   (view: users WHERE role='athlete')
-//  training_sessions → TrainingSession  (use as "sessions")
-//  drills        → Drill
-//  training_attendance → (session_id, athlete_id, attended, rpe_actual)
-//  load_scores   → LoadScore
+//  teams                → Team
+//  players              → Player
+//  player_touchpoints   → PlayerTouchpoint
+//  player_availability  → PlayerAvailability
+//  drills               → Drill
+//  sessions             → Session
+//  session_blocks       → SessionBlock
+//  session_attendance   → SessionAttendance
+//  load_scores          → LoadScore
